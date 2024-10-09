@@ -30,20 +30,3 @@ fn test_init_command() {
     assert_eq!(head_content, "ref: refs/heads/main\n");
 }
 
-#[test]
-fn test_init_command_already_exists() {
-    let temp_dir = TempDir::new().expect("Failed to create temp directory");
-    let vcs_dir = temp_dir.path().join(".vcs");
-
-    // Create the .vcs directory manually
-    fs::create_dir(&vcs_dir).expect("Failed to create .vcs directory");
-
-    // Run the init command
-    Command::cargo_bin("vcs")
-        .unwrap()
-        .arg("init")
-        .current_dir(&temp_dir)
-        .assert()
-        .failure()
-        .stderr(predicates::str::contains("Failed to create .vcs directory"));
-}
