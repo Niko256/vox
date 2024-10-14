@@ -32,7 +32,7 @@ pub enum Commands {
         #[clap(short = 'A', long = "all")]
         all: bool,
 
-        files : Vec<String>,
+        file : Option<String>,
     },
 }
 

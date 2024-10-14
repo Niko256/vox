@@ -1,10 +1,13 @@
 mod cli;
 mod commands;
 mod utils;
-
 use cli::Cli;
-use commands::{cat_file::cat_file_command, hash_object::{hash_object_command, HashObjectArgs}, init::init_command};
 use clap::Parser;
+use commands::{add::add_command, cat_file::cat_file_command, hash_object::{
+    hash_object_command,
+    HashObjectArgs}, init::init_command
+};
+
 
 fn main() {
     let args = Cli::parse();
@@ -31,19 +34,13 @@ fn main() {
             }
         },
 
-        cli::Commands::Add { all, files } => {
-            if all {
-                if let Err(e) = add_all_command() {
-                    eprintln!("Error: {:?}", e);
-                    std::process::exit(1);
-                }
-            } else {
-                if let Err(e) = add_command() {
-                    eprintln!("Error: {:?}", e);
-                    std::process::exit(1);
-                }
+        cli::Commands::Add { all, file } => {
+            if let Err(e) = add_command(all, file) {
+                eprintln!("Error: {:?}", e);
+                std::process::exit(1);
             }
         },
+
     }    
 }
 
