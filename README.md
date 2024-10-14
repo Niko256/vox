@@ -1,4 +1,4 @@
-Version Control System (VCS) is an educational project inspired by Git, designed to deepen understanding of version control systems and to practice Rust programming language.
+***Version Control System (VCS)*** is an educational project inspired by Git, designed to deepen understanding of version control systems and to practice Rust programming language.
 
  This project aims to replicate some of the core functionalities of Git, providing a hands-on experience in building a version control system from scratch.
 
