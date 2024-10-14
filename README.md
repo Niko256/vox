@@ -12,7 +12,7 @@
 
 - Object Inspection: `vcs cat-file` allows viewing the content of an object by its hash.
 
-- File Addition: `vcs add adds` files to the index, and `vcs add -A` adds all files in the current directory.
+- File Addition: `vcs add` adds files to the index, and `vcs add -A` adds all files in the current directory.
 
 - ... (In process)
 
