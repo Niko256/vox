@@ -3,7 +3,7 @@ mod commands;
 mod utils;
 
 use cli::Cli;
-use commands::{cat_file::cat_file_command, hash_object::{hash_object_command, HashObjectArgs}, help::help_command, init::init_command};
+use commands::{cat_file::cat_file_command, hash_object::{hash_object_command, HashObjectArgs}, init::init_command};
 use clap::Parser;
 
 fn main() {
@@ -19,11 +19,6 @@ fn main() {
             std::process::exit(1);
         }),
         cli::Commands::HashObject { file_path } => hash_object_command(HashObjectArgs { file_path }).unwrap_or_else(|e| {
-            eprintln!("Error: {:?}", e);
-            std::process::exit(1);
-        }),
-
-        cli::Commands::HelpCommand => help_command().unwrap_or_else(|e| {
             eprintln!("Error: {:?}", e);
             std::process::exit(1);
         }),

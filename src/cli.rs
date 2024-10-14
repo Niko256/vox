@@ -27,6 +27,4 @@ pub enum Commands {
     HashObject {
         file_path: String,
     },
-
-    HelpCommand,
 }

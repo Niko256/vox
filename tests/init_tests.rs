@@ -29,4 +29,3 @@ fn test_init_command() {
     let head_content = fs::read_to_string(&head_file).expect("Failed to read HEAD file");
     assert_eq!(head_content, "ref: refs/heads/main\n");
 }
-
