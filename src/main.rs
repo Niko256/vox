@@ -10,17 +10,40 @@ fn main() {
     let args = Cli::parse();
 
     match args.command {
-        cli::Commands::Init => init_command().unwrap_or_else(|e| {
-            eprintln!("Error: {:?}", e);
-            std::process::exit(1);
-        }),
-        cli::Commands::CatFile { pretty_print, object_hash, show_type, show_size } => cat_file_command(pretty_print, object_hash, show_type, show_size).unwrap_or_else(|e| {
-            eprintln!("Error: {:?}", e);
-            std::process::exit(1);
-        }),
-        cli::Commands::HashObject { file_path } => hash_object_command(HashObjectArgs { file_path }).unwrap_or_else(|e| {
-            eprintln!("Error: {:?}", e);
-            std::process::exit(1);
-        }),
-    }
+        cli::Commands::Init => {
+            if let Err(e) = init_command() {
+                eprintln!("Error: {:?}", e);
+                std::process::exit(1);
+            }
+        },
+
+        cli::Commands::CatFile { pretty_print, object_hash, show_type, show_size } => {
+            if let Err(e) = cat_file_command(pretty_print, object_hash, show_type, show_size) {
+                eprintln!("Error: {:?}", e);
+                std::process::exit(1);
+            }
+        },
+
+        cli::Commands::HashObject { file_path } => {
+            if let Err(e) = hash_object_command(HashObjectArgs { file_path }) {
+                eprintln!("Error: {:?}", e);
+                std::process::exit(1);
+            }
+        },
+
+        cli::Commands::Add { all, files } => {
+            if all {
+                if let Err(e) = add_all_command() {
+                    eprintln!("Error: {:?}", e);
+                    std::process::exit(1);
+                }
+            } else {
+                if let Err(e) = add_command() {
+                    eprintln!("Error: {:?}", e);
+                    std::process::exit(1);
+                }
+            }
+        },
+    }    
 }
+

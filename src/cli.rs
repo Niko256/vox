@@ -27,4 +27,12 @@ pub enum Commands {
     HashObject {
         file_path: String,
     },
+
+    Add {
+        #[clap(short = 'A', long = "all")]
+        all: bool,
+
+        files : Vec<String>,
+    },
 }
+
