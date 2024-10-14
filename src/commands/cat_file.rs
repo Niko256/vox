@@ -4,6 +4,8 @@ use std::io::Read;
 use flate2::read::ZlibDecoder;
 use crate::utils::{OBJ_DIR};
 
+
+
 pub fn cat_file_command(pretty_print: bool, object_hash: String, show_type: bool, show_size: bool) -> Result<()> {
 
     let object_path = format!("{}/{}/{}", *OBJ_DIR, &object_hash[0..2], &object_hash[2..]);
