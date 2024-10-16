@@ -29,9 +29,8 @@
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/yourusername/vcs.git
-   cd vcs
-    ```
+   https://github.com/Niko256/vcs.git
+   ```
 3. Run the installation script:
 
    ```
