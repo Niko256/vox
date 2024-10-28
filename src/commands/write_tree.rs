@@ -1,5 +1,5 @@
 use anyhow::Result;
-use crate::objects::tree::create_tree_from_index;
+use crate::objects::tree_object::create_tree_from_index;
 use crate::commands::index::load_index;
 
 pub fn write_tree_command() -> Result<()> {

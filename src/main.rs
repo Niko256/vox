@@ -8,7 +8,7 @@ use clap::Parser;
 
 use commands::{add::add_command, cat_file::cat_file_command, hash_object::{
     hash_object_command,
-    HashObjectArgs}, init::init_command, tree::write_tree_command
+    HashObjectArgs}, init::init_command, write_tree::write_tree_command
 };
 
 

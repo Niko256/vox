@@ -44,8 +44,11 @@ pub fn create_tree_from_index(index: &[(String, String)]) -> Result<String> {
         if path.is_file() {
             entries.push(TreeEntry::new("100644".to_string(), "blob".to_string(), object_hash.clone(), file_name));
         } else if path.is_dir() {
-            let sub_index = index.iter().filter(|(p, _)| p.starts_with(file_path)).collect::<Vec<_>>();
-            let sub_tree_hash = create_tree_from_index(&sub_index.iter().map(|(p, h)| (p.clone(), h.clone())).collect::<Vec<_>>())?;
+            let sub_index = index.iter()
+                .filter(|(p, _)| p.starts_with(file_path) && p != file_path)
+                .map(|(p, h)| (p.clone(), h.clone()))
+                .collect::<Vec<_>>();
+            let sub_tree_hash = create_tree_from_index(&sub_index)?;
             entries.push(TreeEntry::new("040000".to_string(), "tree".to_string(), sub_tree_hash, file_name));
         }
     }
