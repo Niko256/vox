@@ -1,9 +1,10 @@
 use std::collections::HashMap;
 use std::fs::{self, OpenOptions};
-use std::io::{self, Write, Read};
+use std::io::{Write, Read};
 use std::path::Path;
 use crate::utils::INDEX_FILE;
 use anyhow::Result;
+
 
 pub fn update_index(file_path: &str, object_hash: &str) -> Result<()> {
     let mut index = load_index()?;

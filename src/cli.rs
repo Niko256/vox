@@ -34,5 +34,7 @@ pub enum Commands {
 
         file : Option<String>,
     },
+
+    WriteTree,
 }
 

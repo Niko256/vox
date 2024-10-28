@@ -1,7 +1,5 @@
-use std::io::{Read, Write};
-use std::{fs, path::Path};
-use crate::utils::{VCS_DIR, OBJ_DIR, INDEX_FILE};
-use crate::commands::index::{update_index};
+use std::fs;
+use crate::commands::index::update_index;
 use anyhow::Result;
 
 
@@ -19,7 +17,7 @@ pub fn add_command(all: bool, file_path: Option<String>) -> Result<()> {
 }
 
 pub fn add_file(file_path: &str) -> Result<()> {
-    let object_hash = crate::commands::hash_object::create_blob(file_path)?;
+    let object_hash = crate::objects::blob::create_blob(file_path)?;
     update_index(file_path, &object_hash)?;
     Ok(())
 }

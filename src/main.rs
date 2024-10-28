@@ -1,11 +1,14 @@
 mod cli;
 mod commands;
 mod utils;
+mod objects;
 use cli::Cli;
 use clap::Parser;
+
+
 use commands::{add::add_command, cat_file::cat_file_command, hash_object::{
     hash_object_command,
-    HashObjectArgs}, init::init_command
+    HashObjectArgs}, init::init_command, tree::write_tree_command
 };
 
 
@@ -40,7 +43,13 @@ fn main() {
                 std::process::exit(1);
             }
         },
-
+        
+        cli::Commands::WriteTree => {
+            if let Err(e) = write_tree_command() {
+                eprintln!("Error: {:?}", e);
+                std::process::exit(1);
+            }
+        }
     }    
 }
 

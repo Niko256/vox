@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use std::fs::File;
 use std::io::Read;
 use flate2::read::ZlibDecoder;
-use crate::utils::{OBJ_DIR};
+use crate::utils::OBJ_DIR;
 
 
 

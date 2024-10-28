@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.89"
 assert_cmd = "2.0.16"
+chrono = "0.4.38"
 clap = { version = "4.5.19", features = ["derive"] }
 flate2 = "1.0.34"
 lazy_static = "1.5.0"
