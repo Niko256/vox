@@ -10,17 +10,19 @@ pub fn cat_file_command(
     show_type: bool,
     show_size: bool,
 ) -> Result<()> {
+    // Construct path to the object file using its hash
     let object_path = format!("{}/{}/{}", *OBJ_DIR, &object_hash[0..2], &object_hash[2..]);
     let file = File::open(&object_path)
         .with_context(|| format!("Failed to open object file: {}", object_hash))?;
 
+    // Decompress the object content using zlib
     let mut decoder = ZlibDecoder::new(file);
     let mut decoder_data = Vec::new();
     decoder
         .read_to_end(&mut decoder_data)
         .context("Failed to read object data")?;
 
-    // Split the header and the data
+    // Parse the object header (format: "type size\0content")
     let header_end = decoder_data
         .iter()
         .position(|&b| b == b'\0')
@@ -28,27 +30,36 @@ pub fn cat_file_command(
     let header = String::from_utf8_lossy(&decoder_data[..header_end]);
     let data = &decoder_data[header_end + 1..];
 
+    // Extract object type from header
     let object_type = header.split(' ').next().unwrap_or("unknown");
 
+    // Handle different display modes based on command flags
     match (show_type, show_size, pretty_print) {
+        // Show only the object type
         (true, false, false) => {
             println!("{}", object_type);
         }
+        // Show only the object size
         (false, true, false) => {
             println!("{}", data.len());
         }
+        // Show object content (pretty print or normal)
         (false, false, true) | (false, false, false) => match object_type {
+            // For blob objects, print content as UTF-8 string
             "blob" => {
                 print!("{}", String::from_utf8_lossy(data));
             }
+            // For tree objects, parse and display directory structure
             "tree" => {
                 let mut pos = 0;
                 while pos < data.len() {
+                    // Find entry metadata end
                     let null_pos = data[pos..]
                         .iter()
                         .position(|&b| b == 0)
                         .context("Invalid format: no null byte found in entry")?;
 
+                    // Parse mode and name
                     let entry_meta = std::str::from_utf8(&data[pos..pos + null_pos])?;
                     let (mode, name) = entry_meta
                         .split_once(' ')
@@ -56,10 +67,12 @@ pub fn cat_file_command(
 
                     pos += null_pos + 1;
 
+                    // Extract and format object hash
                     let hash_bytes = &data[pos..pos + 20];
                     let hash = hex::encode(hash_bytes);
                     pos += 20;
 
+                    // Print entry information
                     println!(
                         "{} {} {}\t{}",
                         mode,
@@ -73,10 +86,12 @@ pub fn cat_file_command(
                     );
                 }
             }
+            // Handle unknown object types
             _ => {
                 return Err(anyhow::anyhow!("Unknown object type: {}", object_type));
             }
         },
+        // Show all information (type, size, and content)
         _ => {
             println!("{}", object_type);
             println!("{}", data.len());
