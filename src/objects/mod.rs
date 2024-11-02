@@ -1,2 +1,2 @@
-pub mod tree_object;
 pub mod blob;
+pub mod tree_object;

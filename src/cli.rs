@@ -7,7 +7,6 @@ pub struct Cli {
     pub command: Commands,
 }
 
-
 #[derive(Debug, Subcommand)]
 pub enum Commands {
     Init,
@@ -27,14 +26,4 @@ pub enum Commands {
     HashObject {
         file_path: String,
     },
-
-    Add {
-        #[clap(short = 'A', long = "all")]
-        all: bool,
-
-        file : Option<String>,
-    },
-
-    WriteTree,
 }
-

@@ -1,6 +1,5 @@
-pub mod init;
+pub mod add;
 pub mod cat_file;
 pub mod hash_object;
-pub mod add;
 pub mod index;
-pub mod write_tree;
+pub mod init;

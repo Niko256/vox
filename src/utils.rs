@@ -5,5 +5,5 @@ lazy_static! {
     pub static ref OBJ_DIR: String = format!("{}/objects", *VCS_DIR);
     pub static ref REFS_DIR: String = format!("{}/refs", *VCS_DIR);
     pub static ref HEAD_DIR: String = format!("{}/HEAD", *VCS_DIR);
-    pub static ref INDEX_FILE: String = format!("{}/index", *VCS_DIR); 
+    pub static ref INDEX_FILE: String = format!("{}/index", *VCS_DIR);
 }
