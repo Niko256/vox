@@ -1,6 +1,7 @@
-use crate::objects::blob::create_blob;
+use crate::{objects::blob::create_blob, utils::OBJ_DIR};
 use anyhow::Result;
 use clap::Parser;
+use std::fs;
 
 #[derive(Parser, Debug)]
 pub struct HashObjectArgs {
@@ -8,6 +9,7 @@ pub struct HashObjectArgs {
 }
 
 pub fn hash_object_command(args: HashObjectArgs) -> Result<()> {
+    fs::create_dir_all(&*OBJ_DIR)?;
     let object_hash = create_blob(&args.file_path)?;
     println!("{}", object_hash);
     Ok(())

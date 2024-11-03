@@ -26,4 +26,18 @@ pub enum Commands {
     HashObject {
         file_path: String,
     },
+
+    Status,
+
+    Rm {
+        #[clap(long)]
+        cashed: bool,
+        path: String,
+    },
+
+    #[clap(name = "ls-files")]
+    LsFiles {
+        #[clap(long)]
+        stage: bool,
+    },
 }
