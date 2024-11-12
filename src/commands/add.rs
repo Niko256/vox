@@ -26,12 +26,13 @@ pub fn add_command(paths: &[PathBuf], all: bool) -> Result<()> {
             })
         {
             let path = entry.path();
-            if let Some(stripped) = path.strip_prefix(".vcs").ok() {
-                if stripped.components().next().is_some() {
-                    continue;
-                }
-            }
-            add_file_to_index(path, &mut index)?;
+
+            let relative_path = if path.is_absolute() {
+                path.strip_prefix(std::env::current_dir()?)?
+            } else {
+                path
+            };
+            add_file_to_index(relative_path, &mut index)?;
         }
     } else {
         // Add specified files to the index

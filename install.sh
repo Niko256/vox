@@ -14,6 +14,7 @@ install_project() {
     cargo install --path .
     if [ $? -eq 0 ]; then
         echo "vcs installed successfully."
+        add_to_path
     else
         echo "Failed to install vcs."
         exit 1
@@ -26,9 +27,21 @@ update_project() {
     cargo install --path . --force
     if [ $? -eq 0 ]; then
         echo "vcs updated successfully."
+        add_to_path
     else
         echo "Failed to update vcs."
         exit 1
+    fi
+}
+
+# Function to add vcs to the PATH
+add_to_path() {
+    echo "Adding vcs to PATH..."
+    if [[ ":$PATH:" != *":$HOME/.cargo/bin:"* ]]; then
+        echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> ~/.bashrc
+        echo "Please restart your shell or run 'source ~/.bashrc' to apply changes."
+    else
+        echo "vcs is already in PATH."
     fi
 }
 

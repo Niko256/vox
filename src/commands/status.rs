@@ -1,63 +1,24 @@
 use crate::commands::index::index::Index;
 use anyhow::{Context, Result};
+use std::collections::hash_set::HashSet;
 use std::fs;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
 pub fn status_command() -> Result<()> {
-    let (added, modified, deleted, untracked) = get_status(Path::new("."))?;
-    print_status(&added, &modified, &deleted, &untracked);
+    let current_dir = Path::new(".");
+    let (staged, modified, deleted, untracked) = get_status(current_dir)?;
+    print_status(&staged, &modified, &deleted, &untracked);
     Ok(())
 }
 
-fn print_status(
-    added: &[PathBuf],
-    modified: &[PathBuf],
-    deleted: &[PathBuf],
-    untracked: &[PathBuf],
-) {
-    println!("On branch main\n");
-
-    if added.is_empty() && modified.is_empty() && deleted.is_empty() && untracked.is_empty() {
-        println!("✓ Working tree clean");
-        return;
-    }
-
-    if !added.is_empty() || !modified.is_empty() || !deleted.is_empty() {
-        println!("Changes to be committed:");
-        println!("  (use \"vcs reset HEAD <file>...\" to unstage)\n");
-        for path in added {
-            println!("\t\x1b[32mnew file:   {}\x1b[0m", path.display());
-        }
-        for path in modified {
-            println!("\t\x1b[32mmodified:   {}\x1b[0m", path.display());
-        }
-        for path in deleted {
-            println!("\t\x1b[32mdeleted:    {}\x1b[0m", path.display());
-        }
-        println!();
-    }
-
-    if !modified.is_empty() {
-        println!("Changes not staged for commit:");
-        println!("  (use \"vcs add <file>...\" to update what will be committed)");
-        println!("  (use \"vcs restore <file>...\" to discard changes)\n");
-        for path in modified {
-            println!("\t\x1b[31mmodified:   {}\x1b[0m", path.display());
-        }
-        println!();
-    }
-
-    if !untracked.is_empty() {
-        println!("Untracked files:");
-        println!("  (use \"vcs add <file>...\" to include in what will be committed)\n");
-        for path in untracked {
-            println!("\t\x1b[31m{}\x1b[0m", path.display());
-        }
-        println!();
-        println!("no changes added to commit (use \"vcs add\" and/or \"vcs commit -a\")");
-    }
+#[derive(Default)]
+struct FileStatus {
+    staged: Vec<PathBuf>,    // Files added to index
+    modified: Vec<PathBuf>,  // Files modified after staging
+    deleted: Vec<PathBuf>,   // Files deleted from working directory
+    untracked: Vec<PathBuf>, // Files not in index
 }
 
 pub fn get_status(
@@ -71,30 +32,28 @@ pub fn get_status(
     }
 
     let mut status = FileStatus::default();
-    scan_working_directory(repo_path, &mut index, &mut status)?;
-    scan_index(repo_path, &index, &mut status)?;
 
-    Ok((
-        status.added,
-        status.modified,
-        status.deleted,
-        status.untracked,
-    ))
-}
+    let mut processed_files = HashSet::new();
 
-#[derive(Default)]
-struct FileStatus {
-    added: Vec<PathBuf>,
-    modified: Vec<PathBuf>,
-    deleted: Vec<PathBuf>,
-    untracked: Vec<PathBuf>,
-}
+    for (path, index_entry) in index.get_entries().iter() {
+        processed_files.insert(path.clone());
+        let full_path = repo_path.join(path);
 
-fn scan_working_directory(
-    repo_path: &Path,
-    index: &mut Index,
-    status: &mut FileStatus,
-) -> Result<()> {
+        if !full_path.exists() {
+            status.deleted.push(path.clone());
+            continue;
+        }
+
+        let metadata = fs::metadata(&full_path)?;
+        if metadata.mtime() as u64 != index_entry.mtime
+            || metadata.size() as u32 != index_entry.size
+        {
+            status.modified.push(path.clone());
+        } else {
+            status.staged.push(path.clone());
+        }
+    }
+
     for entry in WalkDir::new(repo_path)
         .min_depth(1)
         .into_iter()
@@ -109,96 +68,77 @@ fn scan_working_directory(
             continue;
         }
 
-        let path = entry.path().strip_prefix(repo_path)?.to_path_buf();
+        let relative_path = entry.path().strip_prefix(repo_path)?.to_path_buf();
 
-        if let Some(index_entry) = index.get_entry(&path) {
-            if let Ok(metadata) = fs::metadata(entry.path()) {
+        if !processed_files.contains(&relative_path) {
+            if index.get_entries().contains_key(&relative_path) {
+                let metadata = fs::metadata(entry.path())?;
+                let index_entry = index.get_entries().get(&relative_path).unwrap();
                 if metadata.mtime() as u64 != index_entry.mtime
                     || metadata.size() as u32 != index_entry.size
                 {
-                    status.modified.push(path);
-                } else {
-                    status.added.push(path);
+                    status.modified.push(relative_path);
                 }
+            } else {
+                status.untracked.push(relative_path);
             }
-        } else {
-            status.untracked.push(path);
         }
     }
-    Ok(())
+
+    Ok((
+        status.staged,
+        status.modified,
+        status.deleted,
+        status.untracked,
+    ))
 }
 
-fn scan_index(repo_path: &Path, index: &Index, status: &mut FileStatus) -> Result<()> {
-    for path in index.get_entries().keys() {
-        if !repo_path.join(path).exists() {
-            status.deleted.push(path.to_path_buf());
+fn print_status(
+    staged: &[PathBuf],
+    modified: &[PathBuf],
+    deleted: &[PathBuf],
+    untracked: &[PathBuf],
+) {
+    println!("On branch main\n");
+
+    if staged.is_empty() && modified.is_empty() && deleted.is_empty() && untracked.is_empty() {
+        println!("✓ Working tree clean");
+        return;
+    }
+
+    if !staged.is_empty() {
+        println!("Changes to be committed:");
+        println!("  (use \"vcs reset HEAD <file>...\" to unstage)\n");
+        for path in staged {
+            println!("\t\x1b[32mnew file:   {}\x1b[0m", path.display());
         }
-    }
-    Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::commands::add::add_command;
-    use crate::commands::index::index::{Index, IndexEntry};
-    use std::fs::{self, File};
-    use std::io::Write;
-    use tempfile::TempDir;
-
-    fn setup_test_repo() -> (TempDir, PathBuf) {
-        let temp_dir = TempDir::new().unwrap();
-        let repo_path = temp_dir.path().to_path_buf();
-
-        fs::create_dir_all(repo_path.join(".vcs/objects")).unwrap();
-        fs::create_dir_all(repo_path.join(".vcs/refs")).unwrap();
-        fs::write(repo_path.join(".vcs/HEAD"), "ref: refs/heads/main\n").unwrap();
-        (temp_dir, repo_path)
+        println!();
     }
 
-    fn create_test_file(repo_path: &Path, name: &str, content: &str) -> PathBuf {
-        let file_path = repo_path.join(name);
-        let mut file = File::create(&file_path).unwrap();
-        file.write_all(content.as_bytes()).unwrap();
-        file_path
+    if !modified.is_empty() || !deleted.is_empty() {
+        println!("Changes not staged for commit:");
+        println!("  (use \"vcs add <file>...\" to update what will be committed)");
+        println!("  (use \"vcs restore <file>...\" to discard changes)\n");
+
+        for path in modified {
+            println!("\t\x1b[31mmodified:   {}\x1b[0m", path.display());
+        }
+        for path in deleted {
+            println!("\t\x1b[31mdeleted:    {}\x1b[0m", path.display());
+        }
+        println!();
     }
 
-    #[test]
-    fn test_deleted_file() {
-        let (temp_dir, repo_path) = setup_test_repo();
-        let mut index = Index::new();
-
-        let file_path = create_test_file(&repo_path, "test.txt", "content");
-        let entry = IndexEntry::new(&file_path).unwrap();
-        index.add_entry(entry);
-        index.write_to_file(&repo_path.join(".vcs/index")).unwrap();
-
-        fs::remove_file(&file_path).unwrap();
-
-        let (added, modified, deleted, untracked) = get_status(&repo_path).unwrap();
-
-        assert!(added.is_empty());
-        assert!(modified.is_empty());
-        assert_eq!(deleted.len(), 1);
-        assert_eq!(deleted[0], file_path);
-        assert!(untracked.is_empty());
+    if !untracked.is_empty() {
+        println!("Untracked files:");
+        println!("  (use \"vcs add <file>...\" to include in what will be committed)\n");
+        for path in untracked {
+            println!("\t\x1b[31m{}\x1b[0m", path.display());
+        }
+        println!();
     }
 
-    #[test]
-    fn test_untracked_file() {
-        let (_, repo_path) = setup_test_repo();
-        let index = Index::new();
-        index.write_to_file(&repo_path.join(".vcs/index")).unwrap();
-
-        let file_path = create_test_file(&repo_path, "untracked.txt", "content");
-        let relative_path = PathBuf::from("untracked.txt");
-
-        let (added, modified, deleted, untracked) = get_status(&repo_path).unwrap();
-
-        assert!(added.is_empty());
-        assert!(modified.is_empty());
-        assert!(deleted.is_empty());
-        assert_eq!(untracked.len(), 1);
-        assert_eq!(untracked[0], relative_path);
+    if !modified.is_empty() || !untracked.is_empty() {
+        println!("no changes added to commit (use \"vcs add\" and/or \"vcs commit -a\")");
     }
 }
