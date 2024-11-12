@@ -63,8 +63,13 @@ impl Index {
         self.entries.remove(path)
     }
 
-    pub fn get_entry(&mut self, path: &Path) -> Option<&IndexEntry> {
-        self.entries.get(path)
+    pub fn get_entry(&self, path: &Path) -> Option<&IndexEntry> {
+        let normalized_path = if path.starts_with("./") {
+            path.strip_prefix("./").unwrap_or(path)
+        } else {
+            path
+        };
+        self.entries.get(normalized_path)
     }
 
     pub fn get_entries(&self) -> &HashMap<PathBuf, IndexEntry> {
