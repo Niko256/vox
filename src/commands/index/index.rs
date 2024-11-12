@@ -1,7 +1,7 @@
 use anyhow::{Context, Ok, Result};
 use std::collections::HashMap;
 use std::fs::{self, File};
-use std::io::{self, Read, Seek, SeekFrom, Write};
+use std::io::{Read, Write};
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -72,6 +72,11 @@ impl Index {
     }
 
     pub fn write_to_file(&self, path: &Path) -> Result<()> {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)
+                .with_context(|| format!("Failed to create directory at {:?}", parent))?;
+        }
+
         let mut file = File::create(path)
             .with_context(|| format!("Failed to create index file at {:?}", path))?;
 

@@ -1,12 +1,19 @@
-use crate::utils::{HEAD_DIR, OBJ_DIR, REFS_DIR, VCS_DIR};
+use crate::commands::index::index::Index;
+use crate::utils::{HEAD_DIR, INDEX_FILE, OBJ_DIR, REFS_DIR, VCS_DIR};
 use anyhow::{Context, Result};
 use std::fs;
+use std::path::Path;
 
 pub fn init_command() -> Result<()> {
     fs::create_dir_all(&*VCS_DIR).context("Failed to create .vcs directory")?;
     fs::create_dir_all(&*OBJ_DIR).context("Failed to create .vcs/objects directory")?;
     fs::create_dir_all(&*REFS_DIR).context("Failed to create .vcs/refs directory")?;
     fs::write(&*HEAD_DIR, "ref: refs/heads/main\n").context("Failed to write to .vcs/HEAD file")?;
+
+    let index = Index::new();
+    index
+        .write_to_file(Path::new(&*INDEX_FILE))
+        .context("Failed to create index file")?;
 
     println!("Initialized vcs directory");
     Ok(())
