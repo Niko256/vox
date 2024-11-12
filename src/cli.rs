@@ -1,4 +1,5 @@
 use clap::{Parser, Subcommand};
+use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
 #[clap(version, about, long_about = None)]
@@ -32,7 +33,19 @@ pub enum Commands {
     Rm {
         #[clap(long)]
         cashed: bool,
-        path: String,
+
+        #[clap(long)]
+        forced: bool,
+
+        #[clap(required = true)]
+        paths: Vec<PathBuf>,
+    },
+
+    Add {
+        #[clap(long)]
+        all: bool,
+        #[clap(required_unless_present = "all")]
+        paths: Vec<PathBuf>,
     },
 
     #[clap(name = "ls-files")]

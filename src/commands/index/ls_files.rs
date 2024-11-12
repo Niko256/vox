@@ -1,4 +1,4 @@
-use super::index::{Index, IndexEntry};
+use super::index::Index;
 use anyhow::{Context, Result};
 use std::path::Path;
 

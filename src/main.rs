@@ -5,15 +5,7 @@ pub mod objects;
 mod utils;
 
 use clap::Parser;
-use cli::{Cli, Commands};
-use commands::{
-    cat_file::cat_file_command,
-    hash_object::{hash_object_command, HashObjectArgs},
-    index::ls_files,
-    index::rm_index,
-    init::init_command,
-    status,
-};
+use cli::Cli;
 
 use command_handler::handle_command;
 

@@ -1,5 +1,6 @@
 use crate::cli::Commands;
 use crate::commands::{
+    add::add_command,
     cat_file::cat_file_command,
     hash_object::{hash_object_command, HashObjectArgs},
     index::{ls_files::ls_files_command, rm_index::rm_command},
@@ -7,7 +8,6 @@ use crate::commands::{
     status,
 };
 use anyhow::Result;
-use std::path::Path;
 
 pub fn handle_command(command: Commands) -> Result<()> {
     match command {
@@ -31,8 +31,16 @@ pub fn handle_command(command: Commands) -> Result<()> {
         Commands::LsFiles { stage } => {
             ls_files_command(stage)?;
         }
-        Commands::Rm { cashed, path } => {
-            rm_command(Path::new(&path), cashed)?;
+        Commands::Rm {
+            cashed,
+            forced,
+            paths,
+        } => {
+            rm_command(&paths, cashed, forced)?;
+        }
+
+        Commands::Add { all, paths } => {
+            add_command(&paths, all)?;
         }
     }
     Ok(())

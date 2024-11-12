@@ -117,6 +117,8 @@ fn scan_working_directory(
                     || metadata.size() as u32 != index_entry.size
                 {
                     status.modified.push(path);
+                } else {
+                    status.added.push(path);
                 }
             }
         } else {
@@ -138,6 +140,7 @@ fn scan_index(repo_path: &Path, index: &Index, status: &mut FileStatus) -> Resul
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::commands::add::add_command;
     use crate::commands::index::index::{Index, IndexEntry};
     use std::fs::{self, File};
     use std::io::Write;

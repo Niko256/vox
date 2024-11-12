@@ -31,7 +31,7 @@ pub struct Index {
 impl IndexEntry {
     pub fn new(path: &Path) -> Result<Self> {
         let metadata = fs::metadata(path)?;
-        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+        let _now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
 
         Ok(IndexEntry {
             mtime: metadata.mtime() as u64,
@@ -212,7 +212,6 @@ impl Index {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
     use tempfile::tempdir;
 
     #[test]
