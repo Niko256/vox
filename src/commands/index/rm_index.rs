@@ -1,68 +1,75 @@
-use super::index::Index;
+use crate::commands::index::index::Index;
 use anyhow::{Context, Result};
 use std::fs;
-use std::os::unix::fs::MetadataExt;
-use std::path::Path;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use walkdir::WalkDir;
 
-pub fn rm_command(paths: &[PathBuf], cached: bool, force: bool) -> Result<()> {
+pub fn rm_command(paths: &[PathBuf], cached: bool, forced: bool) -> Result<()> {
     let index_path = Path::new(".vcs/index");
     let mut index = Index::new();
 
     if index_path.exists() {
         index.read_from_file(index_path)?;
+    } else {
+        println!("Index is empty, nothing to remove");
+        return Ok(());
     }
+
+    let mut removed_count = 0;
 
     for path in paths {
-        let normalized_path = if path.is_absolute() {
-            path.clone()
-        } else {
-            let path_str = path.to_string_lossy();
-            if path_str.starts_with("./") {
-                path.clone()
-            } else {
-                PathBuf::from(".").join(path)
-            }
-        };
-
-        let index_entry = match index.get_entry(&normalized_path) {
-            Some(entry) => entry,
-            None => {
-                return Err(anyhow::anyhow!(
-                    "Path '{}' not found in index",
-                    normalized_path.display()
-                ));
-            }
-        };
-
-        if !force && normalized_path.exists() {
-            let metadata = fs::metadata(&normalized_path).with_context(|| {
-                format!("Failed to get metadata for {}", normalized_path.display())
-            })?;
-
-            if metadata.size() as u32 != index_entry.size
-                || metadata.mtime() as u64 != index_entry.mtime
+        if path.is_dir() {
+            for entry in WalkDir::new(path)
+                .min_depth(1)
+                .into_iter()
+                .filter_entry(|e| e.file_type().is_file())
             {
-                return Err(anyhow::anyhow!(
-                    "File '{}' has local modifications. Use --force to remove anyway",
-                    normalized_path.display()
-                ));
+                let entry = entry.context("Failed to read directory entry")?;
+                let entry_path = entry.path().to_path_buf();
+                removed_count += remove_single_file(&mut index, &entry_path, cached, forced)?;
             }
+        } else {
+            removed_count += remove_single_file(&mut index, path, cached, forced)?;
         }
-
-        if !cached {
-            if normalized_path.exists() {
-                if normalized_path.is_dir() {
-                    fs::remove_dir_all(&normalized_path)?;
-                } else {
-                    fs::remove_file(&normalized_path)?;
-                }
-            }
-        }
-
-        index.remove_entry(&normalized_path);
     }
 
-    index.write_to_file(index_path)?;
+    if removed_count > 0 {
+        index.write_to_file(index_path)?;
+        println!("Removed {} entries from index", removed_count);
+    } else {
+        println!("No matching entries found to remove");
+    }
+
     Ok(())
+}
+
+fn remove_single_file(index: &mut Index, path: &Path, cached: bool, forced: bool) -> Result<u32> {
+    let relative_path = if path.starts_with("./") {
+        path.strip_prefix("./").unwrap_or(path)
+    } else {
+        path
+    };
+
+    if index.get_entry(relative_path).is_none() {
+        println!("Warning: '{}' not found in index", relative_path.display());
+        return Ok(0);
+    }
+
+    if !cached && !forced && !relative_path.exists() {
+        println!(
+            "Warning: '{}' not found in working directory",
+            relative_path.display()
+        );
+        return Ok(0);
+    }
+
+    if forced && relative_path.exists() {
+        fs::remove_file(relative_path)
+            .with_context(|| format!("Failed to remove file: {}", relative_path.display()))?;
+        println!("Removed file: {}", relative_path.display());
+    }
+
+    index.remove_entry(relative_path);
+
+    Ok(1)
 }

@@ -42,8 +42,6 @@ pub enum Commands {
     },
 
     Add {
-        #[clap(long)]
-        all: bool,
         #[clap(required_unless_present = "all")]
         paths: Vec<PathBuf>,
     },
@@ -52,5 +50,10 @@ pub enum Commands {
     LsFiles {
         #[clap(long)]
         stage: bool,
+    },
+
+    WriteTree {
+        #[clap(default_value = ".")]
+        path: PathBuf,
     },
 }

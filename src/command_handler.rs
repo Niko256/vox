@@ -1,4 +1,5 @@
 use crate::cli::Commands;
+use crate::commands::write_tree::write_tree_command;
 use crate::commands::{
     add::add_command,
     cat_file::cat_file_command,
@@ -38,9 +39,11 @@ pub fn handle_command(command: Commands) -> Result<()> {
         } => {
             rm_command(&paths, cashed, forced)?;
         }
-
-        Commands::Add { all, paths } => {
-            add_command(&paths, all)?;
+        Commands::Add { paths } => {
+            add_command(&paths)?;
+        }
+        Commands::WriteTree { path } => {
+            write_tree_command(&path)?;
         }
     }
     Ok(())
