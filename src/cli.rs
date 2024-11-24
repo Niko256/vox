@@ -56,4 +56,12 @@ pub enum Commands {
         #[clap(default_value = ".")]
         path: PathBuf,
     },
+
+    Commit {
+        #[clap(short = 'm', long)]
+        message: String,
+
+        #[clap(short = 'a', long)]
+        author: Option<String>,
+    },
 }

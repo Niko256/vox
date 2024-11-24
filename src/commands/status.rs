@@ -1,3 +1,4 @@
+use crate::commands::commit::get_current_commit;
 use crate::commands::index::index::Index;
 use anyhow::{Context, Result};
 use std::collections::hash_set::HashSet;
@@ -7,15 +8,16 @@ use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
 pub fn status_command() -> Result<()> {
-    let current_dir = Path::new(".");
-    let (staged, modified, deleted, untracked) = get_status(current_dir)?;
-    print_status(&staged, &modified, &deleted, &untracked);
+    let (added, modified, deleted, untracked) = get_status(Path::new("."))?;
+    let current_commit = get_current_commit()?;
+
+    print_status(&added, &modified, &deleted, &untracked, current_commit);
     Ok(())
 }
 
 #[derive(Default)]
 struct FileStatus {
-    staged: Vec<PathBuf>,    // Files added to index
+    added: Vec<PathBuf>,     // Files added to index
     modified: Vec<PathBuf>,  // Files modified after staging
     deleted: Vec<PathBuf>,   // Files deleted from working directory
     untracked: Vec<PathBuf>, // Files not in index
@@ -50,7 +52,7 @@ pub fn get_status(
         {
             status.modified.push(path.clone());
         } else {
-            status.staged.push(path.clone());
+            status.added.push(path.clone());
         }
     }
 
@@ -86,7 +88,7 @@ pub fn get_status(
     }
 
     Ok((
-        status.staged,
+        status.added,
         status.modified,
         status.deleted,
         status.untracked,
@@ -94,29 +96,38 @@ pub fn get_status(
 }
 
 fn print_status(
-    staged: &[PathBuf],
+    added: &[PathBuf],
     modified: &[PathBuf],
     deleted: &[PathBuf],
     untracked: &[PathBuf],
+    current_commit: Option<String>,
 ) {
-    println!("On branch main\n");
+    let branch_name = match get_current_branch() {
+        Ok(name) => name,
+        Err(_) => "unknown".to_string(),
+    };
 
-    if staged.is_empty() && modified.is_empty() && deleted.is_empty() && untracked.is_empty() {
+    println!("On branch {}", branch_name);
+    if let Some(commit) = current_commit {
+        println!("Current commit [{}]", &commit[..7]);
+    }
+
+    if added.is_empty() && modified.is_empty() && deleted.is_empty() && untracked.is_empty() {
         println!("✓ Working tree clean");
         return;
     }
 
-    if !staged.is_empty() {
+    if !added.is_empty() {
         println!("Changes to be committed:");
         println!("  (use \"vcs reset HEAD <file>...\" to unstage)\n");
-        for path in staged {
+        for path in added {
             println!("\t\x1b[32mnew file:   {}\x1b[0m", path.display());
         }
         println!();
     }
 
     if !modified.is_empty() || !deleted.is_empty() {
-        println!("Changes not staged for commit:");
+        println!("Changes not added for commit:");
         println!("  (use \"vcs add <file>...\" to update what will be committed)");
         println!("  (use \"vcs restore <file>...\" to discard changes)\n");
 
@@ -141,4 +152,16 @@ fn print_status(
     if !modified.is_empty() || !untracked.is_empty() {
         println!("no changes added to commit (use \"vcs add\" and/or \"vcs commit -a\")");
     }
+}
+
+fn get_current_branch() -> Result<String> {
+    let head_content = fs::read_to_string(".vcs/HEAD").context("Failed to read HEAD file")?;
+
+    // Parse "ref: refs/heads/branch_name" format
+    let branch = head_content
+        .strip_prefix("ref: refs/heads/")
+        .and_then(|s| s.strip_suffix('\n'))
+        .context("Invalid HEAD file format")?;
+
+    Ok(branch.to_string())
 }

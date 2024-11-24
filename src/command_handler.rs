@@ -3,6 +3,7 @@ use crate::commands::write_tree::write_tree_command;
 use crate::commands::{
     add::add_command,
     cat_file::cat_file_command,
+    commit::commit_command,
     hash_object::{hash_object_command, HashObjectArgs},
     index::{ls_files::ls_files_command, rm_index::rm_command},
     init::init_command,
@@ -44,6 +45,9 @@ pub fn handle_command(command: Commands) -> Result<()> {
         }
         Commands::WriteTree { path } => {
             write_tree_command(&path)?;
+        }
+        Commands::Commit { message, author } => {
+            commit_command(&message, author)?;
         }
     }
     Ok(())
