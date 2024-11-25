@@ -41,28 +41,34 @@ pub fn create_tree(path: &Path) -> Result<Tree> {
             .unwrap()
             .to_string();
 
+        if name.starts_with('.') || name == "target" {
+            continue;
+        }
+
         // Handle files and directories differently
         if entry_path.is_file() {
-            // Create a blob for files
             let object_hash = create_blob(&entry_path.to_str().unwrap())?;
             tree.entries.push(TreeEntry {
                 object_type: "blob".to_string(),
-                permissions: "100644".to_string(), // Standard file permissions
+                permissions: "100644".to_string(),
                 object_hash,
                 name,
             });
         } else if entry_path.is_dir() {
-            // Recursively create trees for directories
             let subtree = create_tree(&entry_path)?;
-            let subtree_hash = store_tree(&subtree)?;
-            tree.entries.push(TreeEntry {
-                object_type: "tree".to_string(),
-                permissions: "40000".to_string(), // Directory permissions
-                object_hash: subtree_hash,
-                name,
-            });
+            if !subtree.entries.is_empty() {
+                let subtree_hash = store_tree(&subtree)?;
+                tree.entries.push(TreeEntry {
+                    object_type: "tree".to_string(),
+                    permissions: "40000".to_string(),
+                    object_hash: subtree_hash,
+                    name,
+                });
+            }
         }
     }
+
+    tree.entries.sort_by(|a, b| a.name.cmp(&b.name));
 
     Ok(tree)
 }
@@ -96,9 +102,12 @@ pub fn store_tree(tree: &Tree) -> Result<String> {
 
     // Store the compressed content
     let object_path = format!("{}/{}/{}", *OBJ_DIR, &hash[0..2], &hash[2..]);
-    std::fs::create_dir_all(format!("{}/{}", *OBJ_DIR, &hash[0..2]))?;
-    std::fs::write(object_path, compressed)?;
 
+    if !std::path::Path::new(&object_path).exists() {
+        println!("Creating new tree object: {}", hash);
+        std::fs::create_dir_all(format!("{}/{}", *OBJ_DIR, &hash[0..2]))?;
+        std::fs::write(object_path, compressed)?;
+    }
     Ok(hash)
 }
 
@@ -167,9 +176,18 @@ mod tests {
     use std::os::unix::prelude::PermissionsExt;
     use tempfile::TempDir;
 
+    fn setup_test_env() -> Result<TempDir> {
+        let temp_dir = TempDir::new()?;
+        std::env::set_current_dir(temp_dir.path())?;
+
+        fs::create_dir_all(".vcs/objects")?;
+
+        Ok(temp_dir)
+    }
+
     #[test]
     fn test_create_and_store_tree() -> Result<()> {
-        let temp_dir = TempDir::new()?;
+        let temp_dir = setup_test_env()?;
         let dir_path = temp_dir.path();
 
         fs::write(dir_path.join("file_1.txt"), "content1")?;
@@ -214,7 +232,7 @@ mod tests {
 
     #[test]
     fn test_empty_directory() -> Result<()> {
-        let temp_dir = TempDir::new()?;
+        let temp_dir = setup_test_env()?;
         let tree = create_tree(&temp_dir.path())?;
         assert_eq!(
             tree.entries.len(),
@@ -226,7 +244,7 @@ mod tests {
 
     #[test]
     fn test_nested_directories() -> Result<()> {
-        let temp_dir = TempDir::new()?;
+        let temp_dir = setup_test_env()?;
         let dir_path = temp_dir.path();
 
         fs::create_dir(dir_path.join("dir_1"))?;
@@ -248,7 +266,7 @@ mod tests {
 
     #[test]
     fn test_file_permissions() -> Result<()> {
-        let temp_dir = TempDir::new()?;
+        let temp_dir = setup_test_env()?;
         let dir_path = temp_dir.path();
 
         // Creating txt file

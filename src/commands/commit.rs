@@ -1,3 +1,4 @@
+use crate::commands::index::index::Index;
 use crate::objects::commit_object::Commit;
 use crate::objects::tree_object::{create_tree, store_tree};
 use crate::utils::{HEAD_DIR, INDEX_FILE, OBJ_DIR, REFS_DIR, VCS_DIR};
@@ -36,6 +37,10 @@ pub fn commit_command(message: &String, author: Option<String>) -> Result<()> {
 
     // Update the current branch to point to the new commit
     update_current_branch(&hash)?;
+
+    let mut index = Index::new();
+    index.read_from_file(&index_path)?;
+    index.write_to_file(&*INDEX_FILE.as_ref())?;
 
     // Print commit confirmation (first 7 chars of hash + message)
     println!("[{}] {}", &hash[..7], commit.message);

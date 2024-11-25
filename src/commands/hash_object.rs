@@ -27,6 +27,8 @@ mod tests {
     #[test]
     fn test_hash_object() -> Result<(), Box<dyn std::error::Error>> {
         let dir = tempdir()?;
+        std::env::set_current_dir(dir.path())?;
+
         let file_path = dir.path().join("test_file.txt");
         let mut file = File::create(&file_path)?;
         writeln!(file, "test content")?;

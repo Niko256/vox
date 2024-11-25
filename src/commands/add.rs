@@ -78,8 +78,12 @@ impl AddCommand {
 
         if absolute_path.is_file() {
             // Handle single file
-            let _relative_path = relative_base.join(path);
-            self.create_index_entry(&absolute_path, &relative_base)?;
+            let relative_path = if let Ok(rel) = path.strip_prefix(&self.repo_root) {
+                rel.to_path_buf()
+            } else {
+                relative_base.join(path)
+            };
+            self.create_index_entry(&absolute_path, &relative_path)?;
         } else if absolute_path.is_dir() {
             // Handle directory recursively
             // Filter out VCS directories and build artifacts

@@ -43,16 +43,15 @@ pub fn get_status(
 
         if !full_path.exists() {
             status.deleted.push(path.clone());
-            continue;
-        }
-
-        let metadata = fs::metadata(&full_path)?;
-        if metadata.mtime() as u64 != index_entry.mtime
-            || metadata.size() as u32 != index_entry.size
-        {
-            status.modified.push(path.clone());
         } else {
-            status.added.push(path.clone());
+            let metadata = fs::metadata(&full_path)?;
+            if metadata.mtime() as u64 != index_entry.mtime
+                || metadata.size() as u32 != index_entry.size
+            {
+                status.modified.push(path.clone());
+            } else {
+                status.added.push(path.clone());
+            }
         }
     }
 
