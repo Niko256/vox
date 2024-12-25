@@ -27,12 +27,17 @@ A lightweight version control system implemented in Rust, inspired by Git. This 
 
 ## Installation
 
-### Building feom source
+1. Clone the repository:
+
 ```bash
-git clone https://github.com/Niko256/vcs.git
-cd vcs
-cargo build --release
+https://github.com/Niko256/vcs.git
 ```
+2. Run the installaton script
+
+```bash
+./install.sh
+```
+The install.sh script will guide you through the installation or update process.
 
 ## Contributing
 Contributions are welcome! Please feel free to submit a Pull Request.
