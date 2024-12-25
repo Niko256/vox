@@ -9,10 +9,10 @@ use std::io::{Read, Write};
 use std::path::PathBuf;
 
 pub struct Commit {
-    tree: String,
-    parent: Option<String>,
-    author: String,
-    timestamp: DateTime<Utc>,
+    pub tree: String,
+    pub parent: Option<String>,
+    pub author: String,
+    pub timestamp: DateTime<Utc>,
     pub message: String,
 }
 
@@ -42,7 +42,7 @@ impl Commit {
             content.extend(format!("parent {}\n", parent).as_bytes());
         }
 
-        let timestamp_str = self.timestamp.format("%s %z").to_string();
+        let timestamp_str = self.timestamp.timestamp().to_string();
         content.extend(format!("author {} {}\n", self.author, timestamp_str).as_bytes());
         content.extend(b"\n");
         content.extend(self.message.as_bytes());
@@ -90,6 +90,7 @@ impl Commit {
         let compressed_data = fs::read(&object_path).context("Failed to read commit object")?;
         let mut decoder = ZlibDecoder::new(&compressed_data[..]);
         let mut decompressed_data = Vec::new();
+
         decoder
             .read_to_end(&mut decompressed_data)
             .context("Failed to decompress commit data")?;
@@ -145,8 +146,8 @@ impl Commit {
                     }
                     author = Some(parts[1].to_string());
                     timestamp = Some(
-                        DateTime::parse_from_str(parts[0], "%s %z")
-                            .context("Invalid timestamp format")?
+                        DateTime::from_timestamp(parts[0].parse::<i64>()?, 0)
+                            .unwrap()
                             .with_timezone(&Utc),
                     );
                 }

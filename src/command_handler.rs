@@ -1,4 +1,5 @@
 use crate::cli::Commands;
+use crate::commands::log::log_command;
 use crate::commands::write_tree::write_tree_command;
 use crate::commands::{
     add::add_command,
@@ -48,6 +49,9 @@ pub fn handle_command(command: Commands) -> Result<()> {
         }
         Commands::Commit { message, author } => {
             commit_command(&message, author)?;
+        }
+        Commands::Log { count } => {
+            log_command(count)?;
         }
     }
     Ok(())

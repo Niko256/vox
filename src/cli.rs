@@ -64,4 +64,9 @@ pub enum Commands {
         #[clap(short = 'a', long)]
         author: Option<String>,
     },
+
+    Log {
+        #[clap(short = 'n', long, default_value = "10")]
+        count: usize,
+    },
 }
