@@ -1,9 +1,11 @@
 pub mod add;
+pub mod branch;
 pub mod cat_file;
 pub mod commit;
 pub mod hash_object;
 pub mod index;
 pub mod init;
 pub mod log;
+pub mod show;
 pub mod status;
 pub mod write_tree;

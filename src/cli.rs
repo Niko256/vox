@@ -10,7 +10,10 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub enum Commands {
+    #[command(about = "Initialize a new vcs repository")]
     Init,
+
+    #[command(about = "Provide content or type and size information for repository objects")]
     CatFile {
         #[clap(short = 'p')]
         pretty_print: bool,
@@ -24,12 +27,13 @@ pub enum Commands {
         object_hash: String,
     },
 
-    HashObject {
-        file_path: String,
-    },
+    #[command(about = "Compute object ID and optionally creates a blob from a file")]
+    HashObject { file_path: String },
 
+    #[command(about = "Show the working tree status")]
     Status,
 
+    #[command(about = "Remove files from the working tree and from the index")]
     Rm {
         #[clap(long)]
         cashed: bool,
@@ -41,22 +45,25 @@ pub enum Commands {
         paths: Vec<PathBuf>,
     },
 
+    #[command(about = "Add file contents to the index")]
     Add {
         #[clap(required_unless_present = "all")]
         paths: Vec<PathBuf>,
     },
 
-    #[clap(name = "ls-files")]
+    #[command(name = "ls-files", about = "Show information about files in the index")]
     LsFiles {
         #[clap(long)]
         stage: bool,
     },
 
+    #[command(about = "Create a tree object from the current index")]
     WriteTree {
         #[clap(default_value = ".")]
         path: PathBuf,
     },
 
+    #[command(about = "Record changes to the repository")]
     Commit {
         #[clap(short = 'm', long)]
         message: String,
@@ -65,8 +72,27 @@ pub enum Commands {
         author: Option<String>,
     },
 
+    #[command(about = "Show commit logs")]
     Log {
         #[clap(short = 'n', long, default_value = "10")]
         count: usize,
+    },
+
+    #[command(about = "Show various types of objects")]
+    Show {
+        #[clap(default_value = "HEAD")]
+        commit: String,
+    },
+
+    #[command(about = "List, create, or delete branches")]
+    Branch {
+        #[clap(help = "Branch name")]
+        name: Option<String>,
+
+        #[clap(short, long)]
+        delete: bool,
+
+        #[clap(short, long)]
+        list: bool,
     },
 }

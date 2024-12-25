@@ -1,5 +1,7 @@
 use crate::cli::Commands;
+use crate::commands::branch::branch::branch_command;
 use crate::commands::log::log_command;
+use crate::commands::show::show_command;
 use crate::commands::write_tree::write_tree_command;
 use crate::commands::{
     add::add_command,
@@ -52,6 +54,12 @@ pub fn handle_command(command: Commands) -> Result<()> {
         }
         Commands::Log { count } => {
             log_command(count)?;
+        }
+        Commands::Show { commit } => {
+            show_command(&commit)?;
+        }
+        Commands::Branch { name, delete, list } => {
+            branch_command(name, delete, list)?;
         }
     }
     Ok(())
