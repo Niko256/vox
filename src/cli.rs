@@ -95,4 +95,16 @@ pub enum Commands {
         #[clap(short, long)]
         list: bool,
     },
+
+    Checkout {
+        #[clap(help = "Branch name ot commit_hash to checkout")]
+        target: String,
+
+        #[clap(
+            short,
+            long,
+            help = "Force checkout even if there are uncommitted changes"
+        )]
+        force: bool,
+    },
 }

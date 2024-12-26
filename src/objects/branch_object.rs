@@ -1,9 +1,7 @@
 use crate::utils::{HEAD_DIR, VCS_DIR};
-use anyhow::{Context, Result};
-use predicates::name;
-use std::fs::{self, File};
-use std::io::{Read, Write};
-use std::path::{Path, PathBuf};
+use anyhow::Result;
+use std::fs;
+use std::path::PathBuf;
 
 pub struct Branch {
     pub name: String,        // Name of the branch
@@ -82,7 +80,7 @@ impl Branch {
     // Lists all branches in the repository
     pub fn list() -> Result<Vec<Self>> {
         let mut branches = Vec::new();
-        let mut refs_path = PathBuf::from(&*VCS_DIR).join("refs/heads");
+        let refs_path = PathBuf::from(&*VCS_DIR).join("refs/heads");
 
         if !refs_path.exists() {
             return Ok(branches);

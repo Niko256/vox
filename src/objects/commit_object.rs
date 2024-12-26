@@ -1,30 +1,31 @@
-use anyhow::{Context, Result};
-use chrono::{DateTime, Utc};
-use flate2::read::ZlibDecoder;
-use flate2::write::ZlibEncoder;
-use flate2::Compression;
-use sha1::{Digest, Sha1};
-use std::fs;
-use std::io::{Read, Write};
-use std::path::PathBuf;
+use anyhow::{Context, Result}; // Error handling
+use chrono::{DateTime, Utc}; // Date and time handling
+use flate2::read::ZlibDecoder; // For decompressing data
+use flate2::write::ZlibEncoder; // For compressing data
+use flate2::Compression; // Compression settings
+use sha1::{Digest, Sha1}; // For hashing
+use std::fs; // File system operations
+use std::io::{Read, Write}; // I/O traits
+use std::path::PathBuf; // Path manipulation
 
+// Struct representing a Git commit
 pub struct Commit {
-    pub tree: String,
-    pub parent: Option<String>,
-    pub author: String,
-    pub timestamp: DateTime<Utc>,
-    pub message: String,
+    pub tree: String,             // Hash of the tree object
+    pub parent: Option<String>,   // Hash of the parent commit (None for initial commit)
+    pub author: String,           // Author of the commit
+    pub timestamp: DateTime<Utc>, // When the commit was created
+    pub message: String,          // Commit message
 }
 
 impl Commit {
+    // Constructor for creating a new commit
     pub fn new(
         tree_hash: String,
         parent_hash: Option<String>,
         author: String,
         message: String,
     ) -> Self {
-        let timestamp = Utc::now();
-
+        let timestamp = Utc::now(); // Get current timestamp
         Self {
             tree: tree_hash,
             parent: parent_hash,
@@ -34,23 +35,29 @@ impl Commit {
         }
     }
 
+    // Convert commit object to bytes in Git's format
     pub fn serialize(&self) -> Vec<u8> {
         let mut content = Vec::new();
 
+        // Add tree reference
         content.extend(format!("tree {}\n", self.tree).as_bytes());
+        // Add parent reference if exists
         if let Some(parent) = &self.parent {
             content.extend(format!("parent {}\n", parent).as_bytes());
         }
 
+        // Add author and timestamp
         let timestamp_str = self.timestamp.timestamp().to_string();
         content.extend(format!("author {} {}\n", self.author, timestamp_str).as_bytes());
         content.extend(b"\n");
+        // Add commit message
         content.extend(self.message.as_bytes());
         content.extend(b"\n");
 
         content
     }
 
+    // Calculate SHA1 hash of the commit
     pub fn hash(&self) -> String {
         let content = self.serialize();
         let mut hasher = Sha1::new();
@@ -58,60 +65,58 @@ impl Commit {
         format!("{:x}", hasher.finalize())
     }
 
+    // Saves commit object to disk in compressed format
     pub fn save(&self, objects_dir: &PathBuf) -> Result<String> {
         let hash = self.hash();
         let content = self.serialize();
 
-        // Create header and full content
         let header = format!("commit {}\0", content.len());
         let full_content = [header.as_bytes(), &content].concat();
 
-        // Compress the content
+        // Compress using zlib
         let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
-        encoder
-            .write_all(&full_content)
-            .context("Failed to compress commit data")?;
-        let compressed_data = encoder.finish().context("Failed to finish compression")?;
+        encoder.write_all(&full_content)?;
+        let compressed_data = encoder.finish()?;
 
-        // Save to file
+        // Save to filesystem using git-like structure (xx/yyyy...)
         let dir_path = objects_dir.join(&hash[..2]);
-        fs::create_dir_all(&dir_path).context("Failed to create object directory")?;
-
+        fs::create_dir_all(&dir_path)?;
         let object_path = dir_path.join(&hash[2..]);
-        fs::write(&object_path, compressed_data).context("Failed to write commit object")?;
+        fs::write(&object_path, compressed_data)?;
 
         Ok(hash)
     }
 
+    // Loads and parses a commit object from disk by its hash
     pub fn load(hash: &str, objects_dir: &PathBuf) -> Result<Self> {
+        // Construct path to object file
         let dir_path = objects_dir.join(&hash[..2]);
         let object_path = dir_path.join(&hash[2..]);
 
-        let compressed_data = fs::read(&object_path).context("Failed to read commit object")?;
+        // Read and decompress object data
+        let compressed_data = fs::read(&object_path)?;
         let mut decoder = ZlibDecoder::new(&compressed_data[..]);
         let mut decompressed_data = Vec::new();
+        decoder.read_to_end(&mut decompressed_data)?;
 
-        decoder
-            .read_to_end(&mut decompressed_data)
-            .context("Failed to decompress commit data")?;
-
+        // Find the null byte separating header from content
         let null_pos = decompressed_data
             .iter()
             .position(|&b| b == 0)
             .context("Invalid format: no null byte found")?;
 
-        let header = std::str::from_utf8(&decompressed_data[..null_pos])
-            .context("Invalid header encoding")?;
-
+        // Verify object type
+        let header = std::str::from_utf8(&decompressed_data[..null_pos])?;
         if !header.starts_with("commit ") {
             return Err(anyhow::anyhow!("Not a commit object"));
         }
 
-        let content = std::str::from_utf8(&decompressed_data[null_pos + 1..])
-            .context("Invalid content encoding")?;
+        // Parse content
+        let content = std::str::from_utf8(&decompressed_data[null_pos + 1..])?;
         Self::parse(content)
     }
 
+    // Parse commit content into a Commit struct
     fn parse(content: &str) -> Result<Self> {
         let mut lines = content.lines();
         let mut tree = None;
@@ -121,6 +126,7 @@ impl Commit {
         let mut message = Vec::new();
         let mut reading_message = false;
 
+        // Parse header fields until empty line
         while let Some(line) = lines.next() {
             if reading_message {
                 message.push(line.to_string());
@@ -132,18 +138,16 @@ impl Commit {
                 continue;
             }
 
+            // Parse key-value pairs
             let (key, value) = line
                 .split_once(' ')
-                .context("Invalid commit format: line without space")?;
-
+                .ok_or_else(|| anyhow::anyhow!("Invalid commit format"))?;
             match key {
                 "tree" => tree = Some(value.to_string()),
                 "parent" => parent = Some(value.to_string()),
                 "author" => {
+                    // Parse author and timestamp
                     let parts: Vec<&str> = value.rsplitn(2, ' ').collect();
-                    if parts.len() != 2 {
-                        return Err(anyhow::anyhow!("Invalid author format"));
-                    }
                     author = Some(parts[1].to_string());
                     timestamp = Some(
                         DateTime::from_timestamp(parts[0].parse::<i64>()?, 0)
@@ -155,6 +159,7 @@ impl Commit {
             }
         }
 
+        // Construct and return Commit object
         Ok(Self {
             tree: tree.context("Missing tree hash")?,
             parent,

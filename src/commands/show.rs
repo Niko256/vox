@@ -1,11 +1,10 @@
-use crate::commands::commit::{commit_command, get_current_commit};
+use crate::commands::commit::get_current_commit;
 use crate::objects::commit_object::Commit;
-use crate::objects::tree_object::{read_tree, TreeEntry};
+use crate::objects::tree_object::read_tree;
 use crate::utils::OBJ_DIR;
 use anyhow::Result;
 use chrono::{DateTime, Local};
 use colored::*;
-use std::fmt::format;
 use std::path::PathBuf;
 
 pub fn show_command(commit_ref: &str) -> Result<()> {
