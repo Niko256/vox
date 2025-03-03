@@ -110,6 +110,9 @@ pub enum Commands {
     },
 
     Config {
+        #[clap(long, help = "Use global configuration")]
+        global: bool,
+
         #[command(subcommand)]
         config_cmd: ConfigCommands,
     },

@@ -48,7 +48,7 @@ pub trait PersistentConfig: Serialize + for<'de> Deserialize<'de> + Default {
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct Config {
     user: UserConfig,
-    server: ServerConfig,
+    server: Option<ServerConfig>,
 }
 
 impl PersistentConfig for Config {}
@@ -75,11 +75,21 @@ impl Config {
     }
 
     pub fn set_url(&mut self, url: String) {
-        self.server.url = url;
+        if self.server.is_none() {
+            self.server = Some(ServerConfig::default());
+        }
+        if let Some(server) = &mut self.server {
+            server.url = url;
+        }
     }
 
     pub fn set_api_key(&mut self, api_key: Option<String>) {
-        self.server.api_key = api_key;
+        if self.server.is_none() {
+            self.server = Some(ServerConfig::default());
+        }
+        if let Some(server) = &mut self.server {
+            server.api_key = api_key;
+        }
     }
 
     pub fn username(&self) -> &str {
@@ -90,11 +100,13 @@ impl Config {
         &self.user.email
     }
 
-    pub fn url(&self) -> &str {
-        &self.server.url
+    pub fn url(&self) -> Option<&str> {
+        self.server.as_ref().map(|server| server.url.as_str())
     }
 
     pub fn api_key(&self) -> Option<&String> {
-        self.server.api_key.as_ref()
+        self.server
+            .as_ref()
+            .and_then(|server| server.api_key.as_ref())
     }
 }

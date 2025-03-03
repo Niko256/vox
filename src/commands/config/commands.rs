@@ -25,8 +25,13 @@ fn is_valid_email(email: &str) -> bool {
     EMAIL_REGEX.is_match(email)
 }
 
-pub fn config_command(config_command: &ConfigCommands) -> Result<()> {
-    let config_path = get_local_config()?;
+pub fn config_command(global: bool, config_command: &ConfigCommands) -> Result<()> {
+    let config_path = if global {
+        get_global_config()?
+    } else {
+        get_local_config()?
+    };
+
     let mut config = Config::read_from_file(&config_path)?;
 
     match config_command {
@@ -34,15 +39,18 @@ pub fn config_command(config_command: &ConfigCommands) -> Result<()> {
             println!("{}", "Current configuration:".bold().green());
             println!("{}: {}", "Username".green(), config.username());
             println!("{}: {}", "Email".green(), config.email());
-            println!("{}: {}", "Server URL".green(), config.url());
-            println!(
-                "{}: {}",
-                "API Key".green(),
-                config
-                    .api_key()
-                    .cloned()
-                    .unwrap_or_else(|| "Not set".to_string())
-            );
+
+            if let Some(url) = config.url() {
+                println!("{}: {}", "Server URL".green(), url);
+            } else {
+                println!("{}: {}", "Server URL".green(), "Not set");
+            }
+
+            if let Some(api_key) = config.api_key() {
+                println!("{}: {}", "API Key".green(), api_key);
+            } else {
+                println!("{}: {}", "API Key".green(), "Not set");
+            }
         }
         ConfigCommands::SetUsername { username } => {
             config.set_username(username.trim().to_string());

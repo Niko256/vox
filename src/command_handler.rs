@@ -66,8 +66,8 @@ pub fn handle_command(command: Commands) -> Result<()> {
         Commands::Checkout { target, force } => {
             checkout_command(&target, force)?;
         }
-        Commands::Config { config_cmd } => {
-            config_command(&config_cmd)?;
+        Commands::Config { global, config_cmd } => {
+            config_command(global, &config_cmd)?;
         }
     }
     Ok(())
