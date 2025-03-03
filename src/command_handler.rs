@@ -1,6 +1,7 @@
 use crate::cli::Commands;
 use crate::commands::branch::branch::branch_command;
 use crate::commands::branch::checkout::checkout_command;
+use crate::commands::config::config_command;
 use crate::commands::log::log_command;
 use crate::commands::show::show_command;
 use crate::commands::write_tree::write_tree_command;
@@ -64,6 +65,13 @@ pub fn handle_command(command: Commands) -> Result<()> {
         }
         Commands::Checkout { target, force } => {
             checkout_command(&target, force)?;
+        }
+        Commands::Config {
+            global,
+            username,
+            email,
+        } => {
+            config_command(global, username, email)?;
         }
     }
     Ok(())

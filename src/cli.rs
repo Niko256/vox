@@ -107,4 +107,15 @@ pub enum Commands {
         )]
         force: bool,
     },
+
+    Config {
+        #[clap(long)]
+        global: bool,
+
+        #[clap(long = "username")]
+        username: Option<String>,
+
+        #[clap(long = "email")]
+        email: Option<String>,
+    },
 }

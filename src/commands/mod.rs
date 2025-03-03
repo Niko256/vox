@@ -2,6 +2,7 @@ pub mod add;
 pub mod branch;
 pub mod cat_file;
 pub mod commit;
+pub mod config;
 pub mod hash_object;
 pub mod index;
 pub mod init;

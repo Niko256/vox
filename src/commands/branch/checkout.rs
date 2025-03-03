@@ -8,7 +8,6 @@ use anyhow::{Context, Result};
 use colored::*;
 use flate2::bufread::ZlibDecoder;
 use indicatif::{ProgressBar, ProgressStyle};
-use rayon::prelude::*;
 use sha1::*;
 use std::fs;
 use std::io::Read;
@@ -21,7 +20,7 @@ use std::path::{Path, PathBuf};
 pub fn checkout_command(target: &str, force: bool) -> Result<()> {
     // Check for uncommitted changes unless force flag is set
     if !force {
-        let (added, modified, deleted, untracked) = get_status(Path::new("."))?;
+        let (_added, modified, deleted, untracked) = get_status(Path::new("."))?;
         if !modified.is_empty() || !deleted.is_empty() || !untracked.is_empty() {
             return Err(anyhow::anyhow!(
                 "You have uncommitted changes. Commit or stash them first (or use --force)"

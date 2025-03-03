@@ -2,7 +2,7 @@ use crate::objects::branch_object::Branch;
 use anyhow::Result;
 use colored::*;
 
-pub fn branch_command(name: Option<String>, delete: bool, list: bool) -> Result<()> {
+pub fn branch_command(name: Option<String>, delete: bool, _list: bool) -> Result<()> {
     // Handle branch deletion
     if delete {
         if let Some(branch_name) = name {

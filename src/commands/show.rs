@@ -48,7 +48,7 @@ fn print_commit_details(hash: &str, commit: &Commit) -> Result<()> {
     Ok(())
 }
 
-fn print_tree_info(tree_hash: &str, prefix: &str, is_last: bool) -> Result<()> {
+fn print_tree_info(tree_hash: &str, prefix: &str, _is_last: bool) -> Result<()> {
     let tree = read_tree(tree_hash)?;
     let entries = tree.entries;
 
