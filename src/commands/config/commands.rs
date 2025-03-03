@@ -1,4 +1,5 @@
 use crate::commands::config::config::{Config, ConfigCommands, PersistentConfig};
+use crate::utils::VCS_DIR;
 use anyhow::{Context, Result};
 use colored::Colorize;
 use lazy_static::lazy_static;
@@ -17,7 +18,7 @@ pub fn get_global_config() -> Result<PathBuf> {
 
 pub fn get_local_config() -> Result<PathBuf> {
     let curr_dir = std::env::current_dir().context("Couldn't get current directory")?;
-    Ok(curr_dir.join(".vcsconfig"))
+    Ok(curr_dir.join(&*VCS_DIR).join(".vcsconfig"))
 }
 
 fn is_valid_email(email: &str) -> bool {
