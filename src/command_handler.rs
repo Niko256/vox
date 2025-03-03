@@ -1,7 +1,6 @@
 use crate::cli::Commands;
 use crate::commands::branch::branch::branch_command;
 use crate::commands::branch::checkout::checkout_command;
-use crate::commands::config::config_command;
 use crate::commands::log::log_command;
 use crate::commands::show::show_command;
 use crate::commands::write_tree::write_tree_command;
@@ -9,6 +8,7 @@ use crate::commands::{
     add::add_command,
     cat_file::cat_file_command,
     commit::commit_command,
+    config::commands::config_command,
     hash_object::{hash_object_command, HashObjectArgs},
     index::{ls_files::ls_files_command, rm_index::rm_command},
     init::init_command,
@@ -66,12 +66,8 @@ pub fn handle_command(command: Commands) -> Result<()> {
         Commands::Checkout { target, force } => {
             checkout_command(&target, force)?;
         }
-        Commands::Config {
-            global,
-            username,
-            email,
-        } => {
-            config_command(global, username, email)?;
+        Commands::Config { config_cmd } => {
+            config_command(&config_cmd)?;
         }
     }
     Ok(())

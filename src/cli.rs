@@ -1,3 +1,4 @@
+use crate::commands::config::config::ConfigCommands;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
@@ -109,13 +110,7 @@ pub enum Commands {
     },
 
     Config {
-        #[clap(long)]
-        global: bool,
-
-        #[clap(long = "username")]
-        username: Option<String>,
-
-        #[clap(long = "email")]
-        email: Option<String>,
+        #[command(subcommand)]
+        config_cmd: ConfigCommands,
     },
 }

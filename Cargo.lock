@@ -1871,6 +1871,7 @@ dependencies = [
  "lazy_static",
  "predicates",
  "rayon",
+ "regex",
  "regex-syntax",
  "reqwest",
  "serde",
