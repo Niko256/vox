@@ -17,6 +17,8 @@ enum Object {
     Commit(Commit),
     Tree(Tree),
     Tag(Tag),
+    //Delta(Delta),
+    //Conflict(Conflict),
 }
 
 pub trait Storable {

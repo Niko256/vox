@@ -7,6 +7,7 @@ pub mod hash_object;
 pub mod index;
 pub mod init;
 pub mod log;
+pub mod remote;
 pub mod show;
 pub mod status;
 pub mod write_tree;
