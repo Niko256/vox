@@ -1,8 +1,9 @@
 // Required imports for file operations, error handling, and UI
 use crate::commands::status::get_status;
-use crate::objects::branch_object::Branch;
-use crate::objects::commit_object::Commit;
-use crate::objects::tree_object::read_tree;
+use crate::objects::branch::Branch;
+use crate::objects::commit::Commit;
+use crate::objects::object::Loadable;
+use crate::objects::tree::read_tree;
 use crate::utils::{HEAD_DIR, OBJ_DIR};
 use anyhow::{Context, Result};
 use colored::*;

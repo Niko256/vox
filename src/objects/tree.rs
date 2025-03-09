@@ -1,12 +1,14 @@
 use super::blob::create_blob;
+use super::object::VcsObject;
 use crate::utils::OBJ_DIR;
 use anyhow::{Context, Result};
 use flate2::write::{ZlibDecoder, ZlibEncoder};
 use flate2::Compression;
+use hex;
 use sha1::{Digest, Sha1};
 use std::fs;
 use std::io::Write;
-use std::path::Path;
+use std::path::Path; // Импортируйте crate hex
 
 // Represents a single entry in a tree (similar to a directory entry)
 #[derive(Debug)]
@@ -21,6 +23,38 @@ pub struct TreeEntry {
 #[derive(Debug)]
 pub struct Tree {
     pub entries: Vec<TreeEntry>, // Collection of entries in the tree
+}
+
+impl VcsObject for Tree {
+    fn object_type(&self) -> &str {
+        "tree"
+    }
+
+    fn serialize(&self) -> Vec<u8> {
+        let mut content = Vec::new();
+
+        // Format and store each entry
+        for entry in &self.entries {
+            let mode_and_name = format!("{} {}\0", entry.permissions, entry.name);
+            content.extend_from_slice(mode_and_name.as_bytes());
+
+            let hash_bytes = hex::decode(&entry.object_hash).expect("Decoding failed"); // todo remove unwraped
+
+            content.extend_from_slice(&hash_bytes);
+        }
+        content
+    }
+
+    fn hash(&self) -> String {
+        let mut hasher = Sha1::new();
+        hasher.update(&self.serialize());
+        format!("{:x}", hasher.finalize())
+    }
+
+    fn object_path(&self) -> String {
+        let hash = self.hash();
+        format!("{}/{}/{}", *OBJ_DIR, &hash[0..2], &hash[2..])
+    }
 }
 
 // Creates a tree structure from a given directory path
@@ -57,7 +91,8 @@ pub fn create_tree(path: &Path) -> Result<Tree> {
         } else if entry_path.is_dir() {
             let subtree = create_tree(&entry_path)?;
             if !subtree.entries.is_empty() {
-                let subtree_hash = store_tree(&subtree)?;
+                let hashStr = subtree.hash(); // hash new functions;
+                let subtree_hash = hashStr;
                 tree.entries.push(TreeEntry {
                     object_type: "tree".to_string(),
                     permissions: "40000".to_string(),
@@ -75,6 +110,9 @@ pub fn create_tree(path: &Path) -> Result<Tree> {
 
 // Stores a tree object and returns its hash
 pub fn store_tree(tree: &Tree) -> Result<String> {
+    let hashStr = tree.hash(); // new functions
+    let object_path = tree.object_path(); // new functions
+
     let mut content = Vec::new();
 
     // Format and store each entry
@@ -82,7 +120,7 @@ pub fn store_tree(tree: &Tree) -> Result<String> {
         let mode_and_name = format!("{} {}\0", entry.permissions, entry.name);
         content.extend_from_slice(mode_and_name.as_bytes());
 
-        let hash_bytes = hex::decode(&entry.object_hash)?;
+        let hash_bytes = hex::decode(&entry.object_hash).expect("Decoding failed");
         content.extend_from_slice(&hash_bytes);
     }
 
@@ -101,7 +139,6 @@ pub fn store_tree(tree: &Tree) -> Result<String> {
     let compressed = encoder.finish()?;
 
     // Store the compressed content
-    let object_path = format!("{}/{}/{}", *OBJ_DIR, &hash[0..2], &hash[2..]);
 
     if !std::path::Path::new(&object_path).exists() {
         println!("Creating new tree object: {}", hash);
@@ -201,7 +238,8 @@ mod tests {
 
         assert_eq!(tree.entries.len(), 3, "Tree should have 3 entries");
 
-        let tree_hash = store_tree(&tree)?;
+        let Str = tree.hash(); // to remove method, i do so test`s
+        let tree_hash = Str; // to remove method, i do so test`s
 
         let read_tree = read_tree(&tree_hash)?;
 

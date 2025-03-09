@@ -1,4 +1,4 @@
-use crate::objects::tree_object::{create_tree, store_tree};
+use crate::objects::tree::{create_tree, store_tree};
 use anyhow::Result;
 use std::path::Path;
 

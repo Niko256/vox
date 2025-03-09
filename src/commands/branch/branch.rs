@@ -1,4 +1,4 @@
-use crate::objects::branch_object::Branch;
+use crate::objects::branch::Branch;
 use anyhow::Result;
 use colored::*;
 

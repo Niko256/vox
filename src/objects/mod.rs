@@ -1,4 +1,8 @@
 pub mod blob;
-pub mod branch_object;
-pub mod commit_object;
-pub mod tree_object;
+pub mod branch;
+pub mod commit;
+pub mod conflict;
+pub mod delta;
+pub mod object;
+pub mod tag;
+pub mod tree;

@@ -1,14 +1,15 @@
-use anyhow::{Context, Result}; // Error handling
-use chrono::{DateTime, Utc}; // Date and time handling
-use flate2::read::ZlibDecoder; // For decompressing data
-use flate2::write::ZlibEncoder; // For compressing data
+use super::object::{Loadable, Storable, VcsObject};
+use crate::utils::OBJ_DIR;
+use anyhow::{Context, Result};
+use chrono::{DateTime, Utc};
+use flate2::read::ZlibDecoder;
+use flate2::write::ZlibEncoder;
 use flate2::Compression; // Compression settings
-use sha1::{Digest, Sha1}; // For hashing
-use std::fs; // File system operations
-use std::io::{Read, Write}; // I/O traits
-use std::path::PathBuf; // Path manipulation
+use sha1::{Digest, Sha1};
+use std::fs;
+use std::io::{Read, Write};
+use std::path::PathBuf;
 
-// Struct representing a Git commit
 pub struct Commit {
     pub tree: String,             // Hash of the tree object
     pub parent: Option<String>,   // Hash of the parent commit (None for initial commit)
@@ -17,39 +18,27 @@ pub struct Commit {
     pub message: String,          // Commit message
 }
 
-impl Commit {
-    // Constructor for creating a new commit
-    pub fn new(
-        tree_hash: String,
-        parent_hash: Option<String>,
-        author: String,
-        message: String,
-    ) -> Self {
-        let timestamp = Utc::now(); // Get current timestamp
-        Self {
-            tree: tree_hash,
-            parent: parent_hash,
-            author,
-            timestamp,
-            message,
-        }
+impl VcsObject for Commit {
+    fn object_type(&self) -> &str {
+        "commit"
     }
 
-    // Convert commit object to bytes in Git's format
-    pub fn serialize(&self) -> Vec<u8> {
+    fn serialize(&self) -> Vec<u8> {
         let mut content = Vec::new();
 
-        // Add tree reference
+        // Add tree ref
         content.extend(format!("tree {}\n", self.tree).as_bytes());
-        // Add parent reference if exists
+
+        // Add parent commit ref (if exists)
         if let Some(parent) = &self.parent {
             content.extend(format!("parent {}\n", parent).as_bytes());
         }
 
         // Add author and timestamp
-        let timestamp_str = self.timestamp.timestamp().to_string();
-        content.extend(format!("author {} {}\n", self.author, timestamp_str).as_bytes());
+        let timestamp = self.timestamp.timestamp().to_string();
+        content.extend(format!("author {} {}\n", self.author, timestamp).as_bytes());
         content.extend(b"\n");
+
         // Add commit message
         content.extend(self.message.as_bytes());
         content.extend(b"\n");
@@ -57,16 +46,23 @@ impl Commit {
         content
     }
 
-    // Calculate SHA1 hash of the commit
-    pub fn hash(&self) -> String {
+    fn hash(&self) -> String {
         let content = self.serialize();
         let mut hasher = Sha1::new();
+
         hasher.update(&content);
         format!("{:x}", hasher.finalize())
     }
 
+    fn object_path(&self) -> String {
+        let hash = self.hash();
+        format!("{}/{}/{}", *OBJ_DIR, &hash[..2], &hash[2..])
+    }
+}
+
+impl Storable for Commit {
     // Saves commit object to disk in compressed format
-    pub fn save(&self, objects_dir: &PathBuf) -> Result<String> {
+    fn save(&self, objects_dir: &PathBuf) -> Result<String> {
         let hash = self.hash();
         let content = self.serialize();
 
@@ -86,9 +82,11 @@ impl Commit {
 
         Ok(hash)
     }
+}
 
+impl Loadable for Commit {
     // Loads and parses a commit object from disk by its hash
-    pub fn load(hash: &str, objects_dir: &PathBuf) -> Result<Self> {
+    fn load(hash: &str, objects_dir: &PathBuf) -> Result<Self> {
         // Construct path to object file
         let dir_path = objects_dir.join(&hash[..2]);
         let object_path = dir_path.join(&hash[2..]);
@@ -114,6 +112,24 @@ impl Commit {
         // Parse content
         let content = std::str::from_utf8(&decompressed_data[null_pos + 1..])?;
         Self::parse(content)
+    }
+}
+
+impl Commit {
+    pub fn new(
+        tree_hash: String,
+        parent_hash: Option<String>,
+        author: String,
+        message: String,
+    ) -> Self {
+        let timestamp = Utc::now(); // Get current timestamp
+        Self {
+            tree: tree_hash,
+            parent: parent_hash,
+            author,
+            timestamp,
+            message,
+        }
     }
 
     // Parse commit content into a Commit struct
