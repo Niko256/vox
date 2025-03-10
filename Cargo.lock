@@ -1883,6 +1883,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "toml",
+ "url",
  "walkdir",
 ]
 

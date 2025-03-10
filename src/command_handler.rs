@@ -12,6 +12,7 @@ use crate::commands::{
     hash_object::{hash_object_command, HashObjectArgs},
     index::{ls_files::ls_files_command, rm_index::rm_command},
     init::init_command,
+    remote::commands::remote_command,
     status,
 };
 use anyhow::Result;
@@ -68,6 +69,9 @@ pub fn handle_command(command: Commands) -> Result<()> {
         }
         Commands::Config { global, config_cmd } => {
             config_command(global, &config_cmd)?;
+        }
+        Commands::Remote { remote_cmd } => {
+            remote_command(&remote_cmd)?;
         }
     }
     Ok(())

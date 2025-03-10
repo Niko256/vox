@@ -1,7 +1,4 @@
-use crate::commands::{
-    config::config::ConfigCommands,
-    remote::commands::{self, RemoteCommands},
-};
+use crate::commands::{config::config::ConfigCommands, remote::commands::RemoteCommands};
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
@@ -123,6 +120,6 @@ pub enum Commands {
     #[command(about = "Manage remote repositories")]
     Remote {
         #[command(subcommand)]
-        remote_command: RemoteCommands,
+        remote_cmd: RemoteCommands,
     },
 }
