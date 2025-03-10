@@ -41,7 +41,7 @@ pub trait PersistentConfig: Serialize + for<'de> Deserialize<'de> + Default {
             .with_context(|| format!("Failed to write config file: {}", path.display()))?;
         println!(
             "{}",
-            format!("Config file saved to : {}", path.display()).green()
+            format!("Config file saved to : {}", path.display()).blue()
         );
         Ok(())
     }
