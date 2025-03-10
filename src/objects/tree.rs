@@ -217,7 +217,7 @@ mod tests {
         let temp_dir = TempDir::new()?;
         std::env::set_current_dir(temp_dir.path())?;
 
-        fs::create_dir_all(".vcs/objects")?;
+        fs::create_dir_all(".vox/objects")?;
 
         Ok(temp_dir)
     }

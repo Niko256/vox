@@ -2,23 +2,23 @@ use crate::commands::index::index::Index;
 use crate::objects::commit::Commit;
 use crate::objects::object::Storable;
 use crate::objects::tree::{create_tree, store_tree};
-use crate::utils::{HEAD_DIR, INDEX_FILE, OBJ_DIR, VCS_DIR};
+use crate::utils::{HEAD_DIR, INDEX_FILE, OBJ_DIR, VOX_DIR};
 use anyhow::{Context, Result};
 use std::fs;
 use std::path::{Path, PathBuf};
 
 /// Takes a commit message and optional author information
 pub fn commit_command(message: &String, author: Option<String>) -> Result<()> {
-    // Verify we're in a VCS repository
-    if !PathBuf::from(&*VCS_DIR).exists() {
-        return Err(anyhow::anyhow!("Not a vcs repository (or any parent)"));
+    // Verify we're in a VOX repository
+    if !PathBuf::from(&*VOX_DIR).exists() {
+        return Err(anyhow::anyhow!("Not a vox repository (or any parent)"));
     }
 
     // Check if there are any staged changes to commit
     let index_path = PathBuf::from(&*INDEX_FILE);
     if !index_path.exists() {
         return Err(anyhow::anyhow!(
-            "Nothing to commit (create/copy files and use 'vcs add' to track)"
+            "Nothing to commit (create/copy files and use 'vox add' to track)"
         ));
     }
 
@@ -57,7 +57,7 @@ pub fn get_current_commit() -> Result<Option<String>> {
     if head_content.starts_with("ref: ") {
         // HEAD points to a branch reference
         let branch_ref = head_content.trim_start_matches("ref: ").trim();
-        let ref_path = PathBuf::from(&*VCS_DIR).join(branch_ref);
+        let ref_path = PathBuf::from(&*VOX_DIR).join(branch_ref);
 
         if ref_path.exists() {
             // Read and return the commit hash from the branch reference file
@@ -83,7 +83,7 @@ pub fn update_current_branch(commit_hash: &str) -> Result<()> {
     if head_content.starts_with("ref: ") {
         // Update branch reference
         let branch_ref = head_content.trim_start_matches("ref: ").trim();
-        let ref_path = PathBuf::from(&*VCS_DIR).join(branch_ref);
+        let ref_path = PathBuf::from(&*VOX_DIR).join(branch_ref);
 
         // Ensure parent directories exist
         if let Some(parent) = ref_path.parent() {

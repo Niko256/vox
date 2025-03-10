@@ -11,7 +11,7 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub enum Commands {
-    #[command(about = "Initialize a new vcs repository")]
+    #[command(about = "Initialize a new vox repository")]
     Init,
 
     #[command(about = "Provide content or type and size information for repository objects")]

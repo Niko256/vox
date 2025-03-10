@@ -6,7 +6,7 @@ use std::{fs::File, io::Read};
 const HASH_PREFIX_LEN: usize = 2;
 const HASH_BYTES_LEN: usize = 20;
 
-/// Represents a vcs object type
+/// Represents a vox object type
 #[derive(Debug)]
 enum VcsObjectType {
     Blob,
@@ -24,7 +24,7 @@ impl VcsObjectType {
     }
 }
 
-/// Represents a tree entry in vcs
+/// Represents a tree entry in vox
 struct TreeEntry<'a> {
     mode: &'a str,
     name: &'a str,
@@ -38,7 +38,7 @@ pub fn cat_file_command(
     show_type: bool,
     show_size: bool,
 ) -> Result<()> {
-    let object_data = read_vcs_object(&object_hash)?;
+    let object_data = read_vox_object(&object_hash)?;
     let (object_type, content) = parse_object_header(&object_data)?;
 
     match (show_type, show_size, pretty_print) {
@@ -51,7 +51,7 @@ pub fn cat_file_command(
     Ok(())
 }
 
-fn read_vcs_object(hash: &str) -> Result<Vec<u8>> {
+fn read_vox_object(hash: &str) -> Result<Vec<u8>> {
     let object_path = format!(
         "{}/{}/{}",
         *OBJ_DIR,

@@ -1,9 +1,6 @@
-use crate::commands::{
-    config::{
-        commands::get_local_config,
-        config::{Config, PersistentConfig},
-    },
-    remote::commands::is_valid_url,
+use crate::commands::config::{
+    commands::get_local_config,
+    config::{Config, PersistentConfig},
 };
 use anyhow::Result;
 use colored::Colorize;

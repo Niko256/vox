@@ -1,4 +1,4 @@
-use crate::utils::{HEAD_DIR, VCS_DIR};
+use crate::utils::{HEAD_DIR, VOX_DIR};
 use anyhow::Result;
 use std::fs;
 use std::path::PathBuf;
@@ -34,7 +34,7 @@ impl Branch {
 
     // Helper method to get the filesystem path for a branch
     fn get_branch_path(name: &str) -> PathBuf {
-        PathBuf::from(&*VCS_DIR).join("refs/heads").join(name)
+        PathBuf::from(&*VOX_DIR).join("refs/heads").join(name)
     }
 
     // Deletes a branch if it exists and is not the current branch
@@ -80,7 +80,7 @@ impl Branch {
     // Lists all branches in the repository
     pub fn list() -> Result<Vec<Self>> {
         let mut branches = Vec::new();
-        let refs_path = PathBuf::from(&*VCS_DIR).join("refs/heads");
+        let refs_path = PathBuf::from(&*VOX_DIR).join("refs/heads");
 
         if !refs_path.exists() {
             return Ok(branches);

@@ -1,5 +1,5 @@
 use crate::commands::config::config::{Config, ConfigCommands, PersistentConfig};
-use crate::utils::VCS_DIR;
+use crate::utils::VOX_DIR;
 use anyhow::{Context, Result};
 use colored::Colorize;
 use lazy_static::lazy_static;
@@ -13,12 +13,12 @@ lazy_static! {
 
 pub fn get_global_config() -> Result<PathBuf> {
     let home_dir = std::env::var("HOME").context("Couldn't find $HOME directory")?;
-    Ok(PathBuf::from(home_dir).join(".vcsconfig"))
+    Ok(PathBuf::from(home_dir).join(".voxconfig"))
 }
 
 pub fn get_local_config() -> Result<PathBuf> {
     let curr_dir = std::env::current_dir().context("Couldn't get current directory")?;
-    Ok(curr_dir.join(&*VCS_DIR).join(".vcsconfig"))
+    Ok(curr_dir.join(&*VOX_DIR).join(".voxconfig"))
 }
 
 fn is_valid_email(email: &str) -> bool {

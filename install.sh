@@ -10,45 +10,45 @@ fi
 
 # Function to install the project
 install_project() {
-    echo "Installing vcs..."
+    echo "Installing vox..."
     cargo install --path .
     if [ $? -eq 0 ]; then
-        echo "vcs installed successfully."
+        echo "vox installed successfully."
         add_to_path
     else
-        echo "Failed to install vcs."
+        echo "Failed to install vox."
         exit 1
     fi
 }
 
 # Function to update the project
 update_project() {
-    echo "Updating vcs..."
+    echo "Updating vox..."
     cargo install --path . --force
     if [ $? -eq 0 ]; then
-        echo "vcs updated successfully."
+        echo "vox updated successfully."
         add_to_path
     else
-        echo "Failed to update vcs."
+        echo "Failed to update vox."
         exit 1
     fi
 }
 
-# Function to add vcs to the PATH
+# Function to add vox to the PATH
 add_to_path() {
-    echo "Adding vcs to PATH..."
+    echo "Adding vox to PATH..."
     if [[ ":$PATH:" != *":$HOME/.cargo/bin:"* ]]; then
         echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> ~/.bashrc
         echo "Please restart your shell or run 'source ~/.bashrc' to apply changes."
     else
-        echo "vcs is already in PATH."
+        echo "vox is already in PATH."
     fi
 }
 
-echo "Welcome to the vcs installer!"
+echo "Welcome to the vox installer!"
 echo "Please select an option:"
-echo "1. Install vcs"
-echo "2. Update vcs"
+echo "1. Install vox"
+echo "2. Update vox"
 echo "3. Exit"
 
 read -p "Enter your choice (1/2/3): " choice

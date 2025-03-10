@@ -63,7 +63,7 @@ pub fn checkout_command(target: &str, force: bool) -> Result<()> {
 }
 
 /// Cleans the working directory by removing all files and directories
-/// except hidden files and special directories (.vcs, .git, target)
+/// except hidden files and special directories (.vox, .git, target)
 fn clean_working_directory(path: &str) -> Result<()> {
     for entry in fs::read_dir(path)? {
         let entry = entry?;
@@ -81,7 +81,7 @@ fn clean_working_directory(path: &str) -> Result<()> {
 
         if path.is_dir() {
             // Skip special directories
-            if path.starts_with(".vcs") || path.starts_with(".git") || path.starts_with("target") {
+            if path.starts_with(".vox") || path.starts_with(".git") || path.starts_with("target") {
                 continue;
             }
             fs::remove_dir_all(path)?;

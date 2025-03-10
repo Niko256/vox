@@ -27,7 +27,7 @@ pub fn get_status(
     repo_path: &Path,
 ) -> Result<(Vec<PathBuf>, Vec<PathBuf>, Vec<PathBuf>, Vec<PathBuf>)> {
     let mut index = Index::new();
-    let index_path = repo_path.join(".vcs/index");
+    let index_path = repo_path.join(".vox/index");
 
     if index_path.exists() {
         index.read_from_file(&index_path)?;
@@ -59,7 +59,7 @@ pub fn get_status(
         .min_depth(1)
         .into_iter()
         .filter_entry(|e| {
-            !e.path().starts_with(repo_path.join(".vcs"))
+            !e.path().starts_with(repo_path.join(".vox"))
                 && !e.path().starts_with(repo_path.join(".git"))
                 && !e.path().starts_with(repo_path.join("target"))
         })
@@ -118,7 +118,7 @@ fn print_status(
 
     if !added.is_empty() {
         println!("Changes to be committed:");
-        println!("  (use \"vcs reset HEAD <file>...\" to unstage)\n");
+        println!("  (use \"vox reset HEAD <file>...\" to unstage)\n");
         for path in added {
             println!("\t\x1b[32mnew file:   {}\x1b[0m", path.display());
         }
@@ -127,8 +127,8 @@ fn print_status(
 
     if !modified.is_empty() || !deleted.is_empty() {
         println!("Changes not added for commit:");
-        println!("  (use \"vcs add <file>...\" to update what will be committed)");
-        println!("  (use \"vcs restore <file>...\" to discard changes)\n");
+        println!("  (use \"vox add <file>...\" to update what will be committed)");
+        println!("  (use \"vox restore <file>...\" to discard changes)\n");
 
         for path in modified {
             println!("\t\x1b[31mmodified:   {}\x1b[0m", path.display());
@@ -141,7 +141,7 @@ fn print_status(
 
     if !untracked.is_empty() {
         println!("Untracked files:");
-        println!("  (use \"vcs add <file>...\" to include in what will be committed)\n");
+        println!("  (use \"vox add <file>...\" to include in what will be committed)\n");
         for path in untracked {
             println!("\t\x1b[31m{}\x1b[0m", path.display());
         }
@@ -149,12 +149,12 @@ fn print_status(
     }
 
     if !modified.is_empty() || !untracked.is_empty() {
-        println!("no changes added to commit (use \"vcs add\" and/or \"vcs commit -a\")");
+        println!("no changes added to commit (use \"vox add\" and/or \"vox commit -a\")");
     }
 }
 
 fn get_current_branch() -> Result<String> {
-    let head_content = fs::read_to_string(".vcs/HEAD").context("Failed to read HEAD file")?;
+    let head_content = fs::read_to_string(".vox/HEAD").context("Failed to read HEAD file")?;
 
     // Parse "ref: refs/heads/branch_name" format
     let branch = head_content

@@ -3,7 +3,7 @@ use anyhow::{Context, Result};
 use std::path::Path;
 
 pub fn ls_files_command(stage: bool) -> Result<()> {
-    let index_path = Path::new(".vcs/index");
+    let index_path = Path::new(".vox/index");
     let mut index = Index::new();
 
     if index_path.exists() {
