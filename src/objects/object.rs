@@ -5,14 +5,14 @@ use super::tree::Tree;
 use anyhow::Result;
 use std::path::PathBuf;
 
-pub trait VcsObject {
+pub trait VoxObject {
     fn object_type(&self) -> &str;
     fn serialize(&self) -> Vec<u8>;
     fn hash(&self) -> String;
     fn object_path(&self) -> String;
 }
 
-enum Object {
+pub(crate) enum Object {
     Blob(Blob),
     Commit(Commit),
     Tree(Tree),
@@ -31,7 +31,7 @@ pub trait Loadable {
         Self: Sized;
 }
 
-impl VcsObject for Object {
+impl VoxObject for Object {
     fn object_type(&self) -> &str {
         match self {
             Object::Blob(_) => "blob",

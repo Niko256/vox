@@ -122,4 +122,13 @@ pub enum Commands {
         #[command(subcommand)]
         remote_cmd: RemoteCommands,
     },
+
+    #[command(about = "Clone a remote repository")]
+    Clone {
+        #[clap(help = "URL of the remote repository")]
+        url: String,
+
+        #[clap(help = "Directory to clone into")]
+        directory: Option<PathBuf>,
+    },
 }

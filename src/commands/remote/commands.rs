@@ -1,14 +1,14 @@
-use clap::Subcommand;
-use serde::{Deserialize, Serialize};
-use url::Url;
-use anyhow::Result;
 use super::{
     remote_add::add_remote, remote_list::list_remotes, remote_remove::remove_remote,
     remote_rename::rename_remote, remote_show::show_remote,
 };
+use anyhow::Result;
+use clap::Subcommand;
+use serde::{Deserialize, Serialize};
+use url::Url;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct RemoteRepository {
+pub(crate) struct RemoteRepository {
     pub name: String,
     pub url: String,
 }

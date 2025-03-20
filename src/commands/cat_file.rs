@@ -1,3 +1,5 @@
+use crate::objects::object::Object;
+use crate::objects::object::VoxObject;
 use crate::utils::OBJ_DIR;
 use anyhow::{Context, Result};
 use flate2::read::ZlibDecoder;
@@ -5,24 +7,6 @@ use std::{fs::File, io::Read};
 
 const HASH_PREFIX_LEN: usize = 2;
 const HASH_BYTES_LEN: usize = 20;
-
-/// Represents a vox object type
-#[derive(Debug)]
-enum VcsObjectType {
-    Blob,
-    Tree,
-    Unknown(String),
-}
-
-impl VcsObjectType {
-    fn from_str(s: &str) -> Self {
-        match s {
-            "blob" => Self::Blob,
-            "tree" => Self::Tree,
-            unknown => Self::Unknown(unknown.to_string()),
-        }
-    }
-}
 
 /// Represents a tree entry in vox
 struct TreeEntry<'a> {
@@ -44,7 +28,6 @@ pub fn cat_file_command(
     match (show_type, show_size, pretty_print) {
         (true, false, false) => display_type(&object_type),
         (false, true, false) => display_size(content),
-        (false, false, _) => display_content(&object_type, content)?,
         _ => display_all(&object_type, content)?,
     }
 
@@ -71,7 +54,7 @@ fn read_vox_object(hash: &str) -> Result<Vec<u8>> {
     Ok(data)
 }
 
-fn parse_object_header(data: &[u8]) -> Result<(VcsObjectType, &[u8])> {
+fn parse_object_header(data: &[u8]) -> Result<(Object, &[u8])> {
     let header_end = data
         .iter()
         .position(|&b| b == b'\0')
@@ -81,31 +64,18 @@ fn parse_object_header(data: &[u8]) -> Result<(VcsObjectType, &[u8])> {
     let object_type = header
         .split(' ')
         .next()
-        .map(VcsObjectType::from_str)
-        .unwrap_or(VcsObjectType::Unknown("unknown".to_string()));
+        .map(Object::from_str)
+        .unwrap_or(Object::Unknown("unknown".to_string()));
 
     Ok((object_type, &data[header_end + 1..]))
 }
 
-fn display_type(object_type: &VcsObjectType) {
-    match object_type {
-        VcsObjectType::Blob => println!("blob"),
-        VcsObjectType::Tree => println!("tree"),
-        VcsObjectType::Unknown(t) => println!("{}", t),
-    }
+fn display_type(object_type: &Object) {
+    println!("{}", object_type.object_type().to_string());
 }
 
 fn display_size(content: &[u8]) {
     println!("{}", content.len());
-}
-
-fn display_content(object_type: &VcsObjectType, content: &[u8]) -> Result<()> {
-    match object_type {
-        VcsObjectType::Blob => print!("{}", String::from_utf8_lossy(content)),
-        VcsObjectType::Tree => display_tree_content(content)?,
-        VcsObjectType::Unknown(t) => return Err(anyhow::anyhow!("Unknown object type: {}", t)),
-    }
-    Ok(())
 }
 
 fn display_tree_content(data: &[u8]) -> Result<()> {
@@ -148,9 +118,8 @@ fn parse_tree_entry(data: &[u8]) -> Result<TreeEntry> {
     Ok(TreeEntry { mode, name, hash })
 }
 
-fn display_all(object_type: &VcsObjectType, content: &[u8]) -> Result<()> {
+fn display_all(object_type: &Object, content: &[u8]) -> Result<()> {
     display_type(object_type);
     display_size(content);
-    display_content(object_type, content)?;
     Ok(())
 }
