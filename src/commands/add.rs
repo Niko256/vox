@@ -145,7 +145,6 @@ impl AddCommand {
     }
 }
 
-/// Public interface for the add command
 pub fn add_command(paths: &[PathBuf]) -> Result<()> {
     AddCommand::new()?.execute(paths)
 }
