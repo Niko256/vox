@@ -123,12 +123,12 @@ pub enum Commands {
         remote_cmd: RemoteCommands,
     },
 
-    #[command(about = "Clone a remote repository")]
-    Clone {
-        #[clap(help = "URL of the remote repository")]
-        url: String,
+    #[command(about = "Show changes between commits, commit and worktree, etc.")]
+    Diff {
+        #[clap(help = "The commit or reference to compare from")]
+        from: Option<String>,
 
-        #[clap(help = "Directory to clone into")]
-        directory: Option<PathBuf>,
+        #[clap(help = "The commit or reference to compare to")]
+        to: Option<String>,
     },
 }

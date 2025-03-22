@@ -1,43 +1,156 @@
-use super::blob::create_blob;
-use super::delta::Delta;
-use super::object::VoxObject;
+use super::blob::Blob;
+use super::delta::{Delta, DeltaType, FileDelta};
+use super::objects::VoxObject;
+use crate::commands::diff::diff::text_diff;
 use crate::utils::OBJ_DIR;
 use anyhow::{Context, Result};
-use flate2::write::{ZlibDecoder, ZlibEncoder};
+use flate2::read::ZlibDecoder;
+use flate2::write::ZlibEncoder;
 use flate2::Compression;
-use hex;
 use sha1::{Digest, Sha1};
-use std::fs::{self, Permissions};
-use std::io::Write;
-use std::path::{Path, PathBuf}; // Импортируйте crate hex
+use std::collections::HashSet;
+use std::fs;
+use std::io::{Read, Write};
+use std::path::{Path, PathBuf};
 
-// Represents a single entry in a tree (similar to a directory entry)
 #[derive(Debug)]
 pub struct TreeEntry {
-    pub permissions: String, // File permissions (e.g., "100644" for regular files)
-    pub object_type: String, // Type of object ("blob" for files, "tree" for directories)
-    pub object_hash: String, // SHA-1 hash of the object
-    pub name: String,        // Name of the entry
+    pub permissions: String,
+    pub object_type: String,
+    pub object_hash: String,
+    pub name: String,
 }
 
-// Represents a tree structure (similar to a directory)
 #[derive(Debug)]
 pub struct Tree {
-    pub entries: Vec<TreeEntry>, // Collection of entries in the tree
+    pub entries: Vec<TreeEntry>,
 }
 
 impl Tree {
-    fn new(permissions: String, object_type: String, object_hash: String, name: String) -> Self {
-        Tree {
-            entries: (permissions, object_type, object_hash, name),
-        }
+    pub fn new(entries: Vec<TreeEntry>) -> Self {
+        Self { entries }
     }
 
     pub fn load(tree_hash: &str, object_dir: &PathBuf) -> Result<Self> {
-        read_tree(tree_hash, object_dir)?;
+        read_tree(tree_hash, object_dir)
     }
 
-    pub fn compare_trees(from: &Tree, to: &Tree, objects_dir: &PathBuf) -> Result<Delta> {}
+    pub fn compare_trees(from: &Tree, to: &Tree, objects_dir: &PathBuf) -> Result<Delta> {
+        let mut delta = Delta::default();
+
+        let mut all_paths = HashSet::new();
+        for entry in &from.entries {
+            all_paths.insert(PathBuf::from(&entry.name));
+        }
+        for entry in &to.entries {
+            all_paths.insert(PathBuf::from(&entry.name));
+        }
+
+        for path in all_paths {
+            let from_entry = from
+                .entries
+                .iter()
+                .find(|e| e.name == path.to_str().unwrap());
+            let to_entry = to.entries.iter().find(|e| e.name == path.to_str().unwrap());
+
+            match (from_entry, to_entry) {
+                (None, Some(to)) => {
+                    let blob = Blob::load(&to.object_hash, &objects_dir)?;
+                    delta.add_file(
+                        path.clone(),
+                        FileDelta {
+                            delta_type: DeltaType::Added,
+                            old_path: None,
+                            new_path: Some(path.clone()),
+                            old_hash: None,
+                            new_hash: Some(to.object_hash.clone()),
+                            diff: Some(String::from_utf8_lossy(&blob.data).into_owned()),
+                        },
+                    );
+                }
+                (Some(from), None) => {
+                    delta.add_file(
+                        path.clone(),
+                        FileDelta {
+                            delta_type: DeltaType::Deleted,
+                            old_path: Some(path.clone()),
+                            new_path: None,
+                            old_hash: Some(from.object_hash.clone()),
+                            new_hash: None,
+                            diff: None,
+                        },
+                    );
+                }
+                (Some(from), Some(to)) if from.object_hash != to.object_hash => {
+                    let old_blob = Blob::load(&from.object_hash, &objects_dir)?;
+                    let new_blob = Blob::load(&to.object_hash, &objects_dir)?;
+                    let diff = text_diff(
+                        &String::from_utf8_lossy(&old_blob.data),
+                        &String::from_utf8_lossy(&new_blob.data),
+                    );
+
+                    delta.add_file(
+                        path.clone(),
+                        FileDelta {
+                            delta_type: DeltaType::Modified,
+                            old_path: Some(path.clone()),
+                            new_path: Some(path.clone()),
+                            old_hash: Some(from.object_hash.clone()),
+                            new_hash: Some(to.object_hash.clone()),
+                            diff: Some(diff),
+                        },
+                    );
+                }
+                _ => {}
+            }
+        }
+
+        let mut changes = Vec::new();
+
+        let deleted_files: Vec<_> = delta
+            .filter_by_type(DeltaType::Deleted)
+            .into_iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+
+        let added_files: Vec<_> = delta
+            .filter_by_type(DeltaType::Added)
+            .into_iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+
+        for (deleted_path, deleted_delta) in deleted_files {
+            if let Some((added_path, added_delta)) = added_files
+                .iter()
+                .find(|(_, ad)| ad.new_hash == deleted_delta.old_hash)
+            {
+                changes.push((
+                    deleted_path.clone(),
+                    added_path.clone(),
+                    added_delta.clone(),
+                ));
+            }
+        }
+
+        for (deleted_path, added_path, added_delta) in changes {
+            delta.files.remove(&deleted_path);
+            delta.files.remove(&added_path);
+
+            delta.add_file(
+                added_path.to_path_buf(),
+                FileDelta {
+                    delta_type: DeltaType::Renamed,
+                    old_path: Some(deleted_path),
+                    new_path: Some(added_path.to_path_buf()),
+                    old_hash: added_delta.old_hash.clone(),
+                    new_hash: added_delta.new_hash.clone(),
+                    diff: None,
+                },
+            );
+        }
+
+        Ok(delta)
+    }
 }
 
 impl VoxObject for Tree {
@@ -48,13 +161,11 @@ impl VoxObject for Tree {
     fn serialize(&self) -> Result<Vec<u8>> {
         let mut content = Vec::new();
 
-        // Format and store each entry
         for entry in &self.entries {
             let mode_and_name = format!("{} {}\0", entry.permissions, entry.name);
             content.extend_from_slice(mode_and_name.as_bytes());
 
             let hash_bytes = hex::decode(&entry.object_hash).expect("Decoding failed");
-
             content.extend_from_slice(&hash_bytes);
         }
         Ok(content)
@@ -62,23 +173,26 @@ impl VoxObject for Tree {
 
     fn hash(&self) -> Result<String> {
         let mut hasher = Sha1::new();
-        hasher.update(&self.serialize());
+        hasher.update(&self.serialize()?);
         Ok(format!("{:x}", hasher.finalize()))
     }
 
     fn object_path(&self) -> Result<String> {
-        let hash = self.hash();
-        Ok(format!("{}/{}/{}", *OBJ_DIR, &hash[0..2], &hash[2..]))
+        let hash = self.hash()?;
+        Ok(format!(
+            "{}/{}/{}",
+            OBJ_DIR.display(),
+            &hash[0..2],
+            &hash[2..]
+        ))
     }
 }
 
-// Creates a tree structure from a given directory path
 pub fn create_tree(path: &Path) -> Result<Tree> {
     let mut tree = Tree {
         entries: Vec::new(),
     };
 
-    // Read all entries in the directory
     let entries = fs::read_dir(path)?;
     for entry in entries {
         let entry = entry?;
@@ -94,9 +208,8 @@ pub fn create_tree(path: &Path) -> Result<Tree> {
             continue;
         }
 
-        // Handle files and directories differently
         if entry_path.is_file() {
-            let object_hash = create_blob(&entry_path.to_str().unwrap())?;
+            let object_hash = Blob::new(&entry_path.to_str().unwrap())?;
             tree.entries.push(TreeEntry {
                 object_type: "blob".to_string(),
                 permissions: "100644".to_string(),
@@ -106,12 +219,11 @@ pub fn create_tree(path: &Path) -> Result<Tree> {
         } else if entry_path.is_dir() {
             let subtree = create_tree(&entry_path)?;
             if !subtree.entries.is_empty() {
-                let hash_str = subtree.hash(); // hash new functions;
-                let subtree_hash = hash_str;
+                let hash_str = subtree.hash()?;
                 tree.entries.push(TreeEntry {
                     object_type: "tree".to_string(),
                     permissions: "40000".to_string(),
-                    object_hash: subtree_hash,
+                    object_hash: hash_str,
                     name,
                 });
             }
@@ -123,14 +235,12 @@ pub fn create_tree(path: &Path) -> Result<Tree> {
     Ok(tree)
 }
 
-// Stores a tree object and returns its hash
 pub fn store_tree(tree: &Tree) -> Result<String> {
-    let hash_str = tree.hash(); // new functions
-    let object_path = tree.object_path(); // new functions
+    let hash_str = tree.hash()?;
+    let object_path = tree.object_path()?;
 
     let mut content = Vec::new();
 
-    // Format and store each entry
     for entry in &tree.entries {
         let mode_and_name = format!("{} {}\0", entry.permissions, entry.name);
         content.extend_from_slice(mode_and_name.as_bytes());
@@ -139,61 +249,49 @@ pub fn store_tree(tree: &Tree) -> Result<String> {
         content.extend_from_slice(&hash_bytes);
     }
 
-    // Create the full content with header
     let header = format!("tree {}", content.len());
     let full_content = [header.as_bytes(), b"\0", &content].concat();
 
-    // Calculate SHA-1 hash
     let mut hasher = Sha1::new();
     hasher.update(&full_content);
     let hash = format!("{:x}", hasher.finalize());
 
-    // Compress the content using zlib
     let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
     encoder.write_all(&full_content)?;
     let compressed = encoder.finish()?;
 
-    // Store the compressed content
-
     if !std::path::Path::new(&object_path).exists() {
         println!("Creating new tree object: {}", hash);
-        std::fs::create_dir_all(format!("{}/{}", *OBJ_DIR, &hash[0..2]))?;
+        std::fs::create_dir_all(format!("{}/{}", OBJ_DIR.display(), &hash[0..2]))?;
         std::fs::write(object_path, compressed)?;
     }
     Ok(hash)
 }
 
-// Reads a tree object from its hash
 pub fn read_tree(hash: &str, objects_dir: &PathBuf) -> Result<Tree> {
-    // Read and decompress the tree object
     let object_path = objects_dir.join(&hash[0..2]).join(&hash[2..]);
 
     let compressed = std::fs::read(object_path)?;
 
-    let mut decoder = ZlibDecoder::new(Vec::new());
-    decoder.write_all(&compressed)?;
-    let data = decoder.finish()?;
+    let mut decoder = ZlibDecoder::new(&compressed[..]);
+    let mut data = Vec::new();
+    decoder.read_to_end(&mut data)?;
 
-    // Find the header separator
     let null_pos = data
         .iter()
         .position(|&b| b == 0)
         .context("Invalid format: no null byte found")?;
 
-    // Parse the content
     let content = &data[null_pos + 1..];
     let mut entries = Vec::new();
     let mut pos = 0;
 
-    // Parse each entry
     while pos < content.len() {
-        // Find the end of metadata
         let null_pos = content[pos..]
             .iter()
             .position(|&b| b == 0)
             .context("Invalid format: no null byte found in entry")?;
 
-        // Parse metadata (permissions and name)
         let entry_meta = std::str::from_utf8(&content[pos..pos + null_pos])?;
         let (permissions, name) = entry_meta
             .split_once(' ')
@@ -201,12 +299,10 @@ pub fn read_tree(hash: &str, objects_dir: &PathBuf) -> Result<Tree> {
 
         pos += null_pos + 1;
 
-        // Read the object hash
         let hash_bytes = &content[pos..pos + 20];
         let object_hash = hex::encode(hash_bytes);
         pos += 20;
 
-        // Create and store the entry
         entries.push(TreeEntry {
             permissions: permissions.to_string(),
             object_type: if permissions.starts_with("40") {

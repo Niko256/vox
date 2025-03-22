@@ -9,6 +9,7 @@ use crate::commands::{
     cat_file::cat_file_command,
     commit::commit_command,
     config::commands::config_command,
+    diff::diff::diff_command,
     hash_object::{hash_object_command, HashObjectArgs},
     index::{ls_files::ls_files_command, rm_index::rm_command},
     init::init_command,
@@ -72,6 +73,9 @@ pub fn handle_command(command: Commands) -> Result<()> {
         }
         Commands::Remote { remote_cmd } => {
             remote_command(&remote_cmd)?;
+        }
+        Commands::Diff { from, to } => {
+            diff_command(from, to)?;
         }
     }
     Ok(())
