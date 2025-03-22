@@ -1,5 +1,5 @@
 use crate::commands::index::index::{Index, IndexEntry};
-use crate::objects::blob::create_blob;
+use crate::objects::blob::Blob;
 use anyhow::{Context, Result};
 use std::{
     env,
@@ -119,7 +119,7 @@ impl AddCommand {
     /// Generates blob hash and updates index
     fn create_index_entry(&mut self, abs_path: &Path, rel_path: &Path) -> Result<()> {
         // Create blob object from file content
-        let blob_hash = create_blob(
+        let blob_hash = Blob::new(
             abs_path
                 .to_str()
                 .ok_or_else(|| anyhow::anyhow!("Invalid path"))?,

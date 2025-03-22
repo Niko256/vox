@@ -2,7 +2,7 @@
 use crate::commands::status::get_status;
 use crate::objects::branch::Branch;
 use crate::objects::commit::Commit;
-use crate::objects::object::Loadable;
+use crate::objects::objects::Loadable;
 use crate::objects::tree::read_tree;
 use crate::utils::{HEAD_DIR, OBJ_DIR};
 use anyhow::{Context, Result};
@@ -95,7 +95,7 @@ fn clean_working_directory(path: &str) -> Result<()> {
 /// Recursively restores a tree object to the filesystem
 /// Shows progress bar for visual feedback
 fn restore_tree(tree_hash: &str, base_path: &Path) -> Result<()> {
-    let tree = read_tree(tree_hash)?;
+    let tree = read_tree(tree_hash, &*OBJ_DIR)?;
     // Setup progress bar
     let pb = ProgressBar::new(tree.entries.len() as u64);
     pb.set_style(

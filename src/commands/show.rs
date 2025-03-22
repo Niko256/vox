@@ -1,7 +1,7 @@
 use crate::objects::commit::Commit;
 use crate::objects::tree::read_tree;
 use crate::utils::OBJ_DIR;
-use crate::{commands::commit::get_current_commit, objects::object::Loadable};
+use crate::{commands::commit::get_current_commit, objects::objects::Loadable};
 use anyhow::Result;
 use chrono::{DateTime, Local};
 use colored::*;
@@ -84,7 +84,7 @@ fn print_commit_details(hash: &str, commit: &Commit) -> Result<()> {
 /// - `_is_last`: Whether the current tree entry is the last in its parent tree.
 ///
 fn print_tree_info(tree_hash: &str, prefix: &str, _is_last: bool) -> Result<()> {
-    let tree = read_tree(tree_hash)?;
+    let tree = read_tree(tree_hash, &*OBJ_DIR)?;
     let entries = tree.entries;
 
     // Iterate over the entries in the tree

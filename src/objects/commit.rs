@@ -1,21 +1,23 @@
-use super::object::{Loadable, Storable, VoxObject};
+use super::objects::{Loadable, Storable, VoxObject};
+use super::tree::Tree;
+use crate::objects::delta::Delta;
 use crate::utils::OBJ_DIR;
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use flate2::read::ZlibDecoder;
 use flate2::write::ZlibEncoder;
-use flate2::Compression; // Compression settings
+use flate2::Compression;
 use sha1::{Digest, Sha1};
 use std::fs;
 use std::io::{Read, Write};
 use std::path::PathBuf;
 
 pub struct Commit {
-    pub tree: String,             // Hash of the tree object
-    pub parent: Option<String>,   // Hash of the parent commit (None for initial commit)
-    pub author: String,           // Author of the commit
-    pub timestamp: DateTime<Utc>, // When the commit was created
-    pub message: String,          // Commit message
+    pub tree: String,
+    pub parent: Option<String>,
+    pub author: String,
+    pub timestamp: DateTime<Utc>,
+    pub message: String,
 }
 
 impl VoxObject for Commit {
@@ -26,20 +28,16 @@ impl VoxObject for Commit {
     fn serialize(&self) -> Result<Vec<u8>> {
         let mut content = Vec::new();
 
-        // Add tree ref
         content.extend(format!("tree {}\n", self.tree).as_bytes());
 
-        // Add parent commit ref (if exists)
         if let Some(parent) = &self.parent {
             content.extend(format!("parent {}\n", parent).as_bytes());
         }
 
-        // Add author and timestamp
         let timestamp = self.timestamp.timestamp().to_string();
         content.extend(format!("author {} {}\n", self.author, timestamp).as_bytes());
         content.extend(b"\n");
 
-        // Add commit message
         content.extend(self.message.as_bytes());
         content.extend(b"\n");
 
@@ -47,34 +45,35 @@ impl VoxObject for Commit {
     }
 
     fn hash(&self) -> Result<String> {
-        let content = self.serialize();
+        let content = self.serialize()?;
         let mut hasher = Sha1::new();
-
         hasher.update(&content);
         Ok(format!("{:x}", hasher.finalize()))
     }
 
     fn object_path(&self) -> Result<String> {
-        let hash = self.hash();
-        Ok(format!("{}/{}/{}", *OBJ_DIR, &hash[..2], &hash[2..]))
+        let hash = self.hash()?;
+        Ok(format!(
+            "{}/{}/{}",
+            OBJ_DIR.display(),
+            &hash[..2],
+            &hash[2..]
+        ))
     }
 }
 
 impl Storable for Commit {
-    // Saves commit object to disk in compressed format
     fn save(&self, objects_dir: &PathBuf) -> Result<String> {
-        let hash = self.hash();
-        let content = self.serialize();
+        let hash = self.hash()?;
+        let content = self.serialize()?;
 
         let header = format!("commit {}\0", content.len());
         let full_content = [header.as_bytes(), &content].concat();
 
-        // Compress using zlib
         let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
         encoder.write_all(&full_content)?;
         let compressed_data = encoder.finish()?;
 
-        // Save to filesystem using git-like structure (xx/yyyy...)
         let dir_path = objects_dir.join(&hash[..2]);
         fs::create_dir_all(&dir_path)?;
         let object_path = dir_path.join(&hash[2..]);
@@ -85,31 +84,25 @@ impl Storable for Commit {
 }
 
 impl Loadable for Commit {
-    // Loads and parses a commit object from disk by its hash
     fn load(hash: &str, objects_dir: &PathBuf) -> Result<Self> {
-        // Construct path to object file
         let dir_path = objects_dir.join(&hash[..2]);
         let object_path = dir_path.join(&hash[2..]);
 
-        // Read and decompress object data
         let compressed_data = fs::read(&object_path)?;
         let mut decoder = ZlibDecoder::new(&compressed_data[..]);
         let mut decompressed_data = Vec::new();
         decoder.read_to_end(&mut decompressed_data)?;
 
-        // Find the null byte separating header from content
         let null_pos = decompressed_data
             .iter()
             .position(|&b| b == 0)
             .context("Invalid format: no null byte found")?;
 
-        // Verify object type
         let header = std::str::from_utf8(&decompressed_data[..null_pos])?;
         if !header.starts_with("commit ") {
             return Err(anyhow::anyhow!("Not a commit object"));
         }
 
-        // Parse content
         let content = std::str::from_utf8(&decompressed_data[null_pos + 1..])?;
         Self::parse(content)
     }
@@ -122,7 +115,7 @@ impl Commit {
         author: String,
         message: String,
     ) -> Self {
-        let timestamp = Utc::now(); // Get current timestamp
+        let timestamp = Utc::now();
         Self {
             tree: tree_hash,
             parent: parent_hash,
@@ -132,7 +125,6 @@ impl Commit {
         }
     }
 
-    // Parse commit content into a Commit struct
     fn parse(content: &str) -> Result<Self> {
         let mut lines = content.lines();
         let mut tree = None;
@@ -142,7 +134,6 @@ impl Commit {
         let mut message = Vec::new();
         let mut reading_message = false;
 
-        // Parse header fields until empty line
         while let Some(line) = lines.next() {
             if reading_message {
                 message.push(line.to_string());
@@ -154,7 +145,6 @@ impl Commit {
                 continue;
             }
 
-            // Parse key-value pairs
             let (key, value) = line
                 .split_once(' ')
                 .ok_or_else(|| anyhow::anyhow!("Invalid commit format"))?;
@@ -162,7 +152,6 @@ impl Commit {
                 "tree" => tree = Some(value.to_string()),
                 "parent" => parent = Some(value.to_string()),
                 "author" => {
-                    // Parse author and timestamp
                     let parts: Vec<&str> = value.rsplitn(2, ' ').collect();
                     author = Some(parts[1].to_string());
                     timestamp = Some(
@@ -175,7 +164,6 @@ impl Commit {
             }
         }
 
-        // Construct and return Commit object
         Ok(Self {
             tree: tree.context("Missing tree hash")?,
             parent,
@@ -184,4 +172,19 @@ impl Commit {
             message: message.join("\n"),
         })
     }
+}
+
+pub fn compare_commits(from_hash: &str, to_hash: &str, objects_dir: &PathBuf) -> Result<Delta> {
+    let from_commit = Commit::load(from_hash, objects_dir)?;
+    let to_commit = Commit::load(to_hash, objects_dir)?;
+
+    let from_tree = Tree::load(&from_commit.tree, objects_dir)?;
+    let to_tree = Tree::load(&to_commit.tree, objects_dir)?;
+
+    let mut delta = Tree::compare_trees(&from_tree, &to_tree, objects_dir)?;
+
+    delta.set_from(Some(from_hash.to_string()));
+    delta.set_to(Some(to_hash.to_string()));
+
+    Ok(delta)
 }

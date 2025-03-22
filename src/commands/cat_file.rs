@@ -1,8 +1,9 @@
-use crate::objects::object::Object;
-use crate::objects::object::VoxObject;
+use crate::objects::objects::Object;
+use crate::objects::objects::VoxObject;
 use crate::utils::OBJ_DIR;
 use anyhow::{Context, Result};
 use flate2::read::ZlibDecoder;
+use std::str::FromStr;
 use std::{fs::File, io::Read};
 
 const HASH_PREFIX_LEN: usize = 2;
@@ -37,7 +38,7 @@ pub fn cat_file_command(
 fn read_vox_object(hash: &str) -> Result<Vec<u8>> {
     let object_path = format!(
         "{}/{}/{}",
-        *OBJ_DIR,
+        OBJ_DIR.display(),
         &hash[..HASH_PREFIX_LEN],
         &hash[HASH_PREFIX_LEN..]
     );
@@ -65,9 +66,9 @@ fn parse_object_header(data: &[u8]) -> Result<(Object, &[u8])> {
         .split(' ')
         .next()
         .map(Object::from_str)
-        .unwrap_or(Object::Unknown("unknown".to_string()));
+        .unwrap_or(Ok(Object::Unknown("unknown".to_string())));
 
-    Ok((object_type, &data[header_end + 1..]))
+    Ok((object_type?, &data[header_end + 1..]))
 }
 
 fn display_type(object_type: &Object) {
