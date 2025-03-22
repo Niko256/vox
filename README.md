@@ -38,6 +38,3 @@ https://github.com/Niko256/vox.git
 ./install.sh
 ```
 The install.sh script will guide you through the installation or update process.
-
-## Contributing
-Contributions are welcome! Please feel free to submit a Pull Request.

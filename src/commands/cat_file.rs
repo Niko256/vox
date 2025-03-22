@@ -16,7 +16,6 @@ struct TreeEntry<'a> {
     hash: String,
 }
 
-/// Handles the cat-file command functionality
 pub fn cat_file_command(
     pretty_print: bool,
     object_hash: String,
