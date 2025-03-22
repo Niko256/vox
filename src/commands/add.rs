@@ -119,14 +119,14 @@ impl AddCommand {
     /// Generates blob hash and updates index
     fn create_index_entry(&mut self, abs_path: &Path, rel_path: &Path) -> Result<()> {
         // Create blob object from file content
-        let blob_hash = Blob::new(
+        let blob_hash = Blob::blob_hash(
             abs_path
                 .to_str()
                 .ok_or_else(|| anyhow::anyhow!("Invalid path"))?,
         )?;
 
         // Convert hex hash to bytes
-        let hash_bytes = hex::decode(&blob_hash)
+        let hash_bytes = hex::decode(blob_hash.as_str())
             .with_context(|| format!("Failed to decode blob hash: {}", blob_hash))?;
 
         // Create and update index entry

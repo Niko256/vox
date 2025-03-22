@@ -1,6 +1,6 @@
 use super::blob::Blob;
 use super::delta::{Delta, DeltaType, FileDelta};
-use super::objects::VoxObject;
+use super::objects::{Storable, VoxObject};
 use crate::commands::diff::diff::text_diff;
 use crate::utils::OBJ_DIR;
 use anyhow::{Context, Result};
@@ -10,7 +10,7 @@ use flate2::Compression;
 use sha1::{Digest, Sha1};
 use std::collections::HashSet;
 use std::fs;
-use std::io::{Read, Write};
+use std::io::{BufRead, Read, Write};
 use std::path::{Path, PathBuf};
 
 #[derive(Debug)]
@@ -65,6 +65,8 @@ impl Tree {
                             old_hash: None,
                             new_hash: Some(to.object_hash.clone()),
                             diff: Some(String::from_utf8_lossy(&blob.data).into_owned()),
+                            added_lines: blob.data.lines().count(),
+                            deleted_lines: 0,
                         },
                     );
                 }
@@ -78,13 +80,15 @@ impl Tree {
                             old_hash: Some(from.object_hash.clone()),
                             new_hash: None,
                             diff: None,
+                            added_lines: 0,
+                            deleted_lines: 0,
                         },
                     );
                 }
                 (Some(from), Some(to)) if from.object_hash != to.object_hash => {
                     let old_blob = Blob::load(&from.object_hash, &objects_dir)?;
                     let new_blob = Blob::load(&to.object_hash, &objects_dir)?;
-                    let diff = text_diff(
+                    let (diff, added, deleted) = text_diff(
                         &String::from_utf8_lossy(&old_blob.data),
                         &String::from_utf8_lossy(&new_blob.data),
                     );
@@ -98,6 +102,8 @@ impl Tree {
                             old_hash: Some(from.object_hash.clone()),
                             new_hash: Some(to.object_hash.clone()),
                             diff: Some(diff),
+                            added_lines: added,
+                            deleted_lines: deleted,
                         },
                     );
                 }
@@ -145,6 +151,8 @@ impl Tree {
                     old_hash: added_delta.old_hash.clone(),
                     new_hash: added_delta.new_hash.clone(),
                     diff: None,
+                    added_lines: 0,
+                    deleted_lines: 0,
                 },
             );
         }
@@ -172,8 +180,9 @@ impl VoxObject for Tree {
     }
 
     fn hash(&self) -> Result<String> {
+        let content = self.serialize()?;
         let mut hasher = Sha1::new();
-        hasher.update(&self.serialize()?);
+        hasher.update(&content);
         Ok(format!("{:x}", hasher.finalize()))
     }
 
@@ -199,9 +208,9 @@ pub fn create_tree(path: &Path) -> Result<Tree> {
         let entry_path = entry.path();
         let name = entry_path
             .file_name()
-            .unwrap()
+            .ok_or_else(|| anyhow::anyhow!("Invalid file name"))?
             .to_str()
-            .unwrap()
+            .ok_or_else(|| anyhow::anyhow!("Invalid UTF-8 file name"))?
             .to_string();
 
         if name.starts_with('.') || name == "target" {
@@ -209,7 +218,8 @@ pub fn create_tree(path: &Path) -> Result<Tree> {
         }
 
         if entry_path.is_file() {
-            let object_hash = Blob::new(&entry_path.to_str().unwrap())?;
+            let blob = Blob::new(entry_path.to_str().context("Invalid file path")?)?;
+            let object_hash = blob.save(&PathBuf::from(&*OBJ_DIR))?;
             tree.entries.push(TreeEntry {
                 object_type: "blob".to_string(),
                 permissions: "100644".to_string(),
@@ -219,7 +229,7 @@ pub fn create_tree(path: &Path) -> Result<Tree> {
         } else if entry_path.is_dir() {
             let subtree = create_tree(&entry_path)?;
             if !subtree.entries.is_empty() {
-                let hash_str = subtree.hash()?;
+                let hash_str = store_tree(&subtree)?;
                 tree.entries.push(TreeEntry {
                     object_type: "tree".to_string(),
                     permissions: "40000".to_string(),
@@ -236,43 +246,32 @@ pub fn create_tree(path: &Path) -> Result<Tree> {
 }
 
 pub fn store_tree(tree: &Tree) -> Result<String> {
-    let hash_str = tree.hash()?;
-    let object_path = tree.object_path()?;
-
-    let mut content = Vec::new();
-
-    for entry in &tree.entries {
-        let mode_and_name = format!("{} {}\0", entry.permissions, entry.name);
-        content.extend_from_slice(mode_and_name.as_bytes());
-
-        let hash_bytes = hex::decode(&entry.object_hash).expect("Decoding failed");
-        content.extend_from_slice(&hash_bytes);
-    }
-
-    let header = format!("tree {}", content.len());
-    let full_content = [header.as_bytes(), b"\0", &content].concat();
+    let content = tree.serialize()?;
+    let header = format!("tree {}\0", content.len());
+    let full_content = [header.as_bytes(), &content].concat();
 
     let mut hasher = Sha1::new();
     hasher.update(&full_content);
     let hash = format!("{:x}", hasher.finalize());
 
+    let object_path = PathBuf::from(&*OBJ_DIR).join(&hash[..2]).join(&hash[2..]);
+
     let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
     encoder.write_all(&full_content)?;
     let compressed = encoder.finish()?;
 
-    if !std::path::Path::new(&object_path).exists() {
-        println!("Creating new tree object: {}", hash);
-        std::fs::create_dir_all(format!("{}/{}", OBJ_DIR.display(), &hash[0..2]))?;
-        std::fs::write(object_path, compressed)?;
+    if !object_path.exists() {
+        fs::create_dir_all(object_path.parent().context("Invalid object path")?)?;
+        fs::write(&object_path, compressed)?;
     }
+
     Ok(hash)
 }
 
 pub fn read_tree(hash: &str, objects_dir: &PathBuf) -> Result<Tree> {
-    let object_path = objects_dir.join(&hash[0..2]).join(&hash[2..]);
+    let object_path = objects_dir.join(&hash[..2]).join(&hash[2..]);
 
-    let compressed = std::fs::read(object_path)?;
-
+    let compressed = fs::read(&object_path)?;
     let mut decoder = ZlibDecoder::new(&compressed[..]);
     let mut data = Vec::new();
     decoder.read_to_end(&mut data)?;

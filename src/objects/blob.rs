@@ -1,10 +1,11 @@
-use super::objects::VoxObject;
+use super::objects::{Storable, VoxObject};
 use crate::utils::OBJ_DIR;
 use anyhow::{Context, Result};
 use flate2::bufread::ZlibDecoder;
 use flate2::write::ZlibEncoder;
 use flate2::Compression;
 use sha1::{Digest, Sha1};
+use std::fs;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::PathBuf;
@@ -14,7 +15,12 @@ pub struct Blob {
 }
 
 impl Blob {
-    pub fn new(file_path: &str) -> Result<String> {
+    pub fn new(file_path: &str) -> Result<Self> {
+        let data = std::fs::read(file_path)?;
+        Ok(Blob { data })
+    }
+
+    pub fn blob_hash(file_path: &str) -> Result<String> {
         let blob = Blob::from_file(file_path)?;
         let object_hash = blob.hash()?;
 
@@ -102,5 +108,27 @@ impl VoxObject for Blob {
             &hash[..2],
             &hash[2..]
         ))
+    }
+}
+
+impl Storable for Blob {
+    fn save(&self, objects_dir: &PathBuf) -> Result<String> {
+        let mut hasher = Sha1::new();
+        hasher.update(&self.data);
+        let hash = format!("{:x}", hasher.finalize());
+
+        let header = format!("blob {}\0", self.data.len());
+        let full_content = [header.as_bytes(), &self.data].concat();
+
+        let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+        encoder.write_all(&full_content)?;
+        let compressed_data = encoder.finish()?;
+
+        let dir_path = objects_dir.join(&hash[..2]);
+        fs::create_dir_all(&dir_path)?;
+        let object_path = dir_path.join(&hash[2..]);
+        fs::write(&object_path, compressed_data)?;
+
+        Ok(hash)
     }
 }

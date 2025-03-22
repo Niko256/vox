@@ -26,6 +26,8 @@ pub(crate) struct FileDelta {
     pub old_hash: Option<String>,
     pub new_hash: Option<String>,
     pub diff: Option<String>,
+    pub added_lines: usize,
+    pub deleted_lines: usize,
 }
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]

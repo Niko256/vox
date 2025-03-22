@@ -10,7 +10,7 @@ pub struct HashObjectArgs {
 
 pub fn hash_object_command(args: HashObjectArgs) -> Result<()> {
     fs::create_dir_all(&*OBJ_DIR)?;
-    let object_hash = Blob::new(&args.file_path)?;
+    let object_hash = Blob::blob_hash(&args.file_path)?;
     println!("{}", object_hash);
     Ok(())
 }
