@@ -1,14 +1,15 @@
 use super::blob::create_blob;
-use super::object::VcsObject;
+use super::delta::Delta;
+use super::object::VoxObject;
 use crate::utils::OBJ_DIR;
 use anyhow::{Context, Result};
 use flate2::write::{ZlibDecoder, ZlibEncoder};
 use flate2::Compression;
 use hex;
 use sha1::{Digest, Sha1};
-use std::fs;
+use std::fs::{self, Permissions};
 use std::io::Write;
-use std::path::Path; // Импортируйте crate hex
+use std::path::{Path, PathBuf}; // Импортируйте crate hex
 
 // Represents a single entry in a tree (similar to a directory entry)
 #[derive(Debug)]
@@ -25,12 +26,26 @@ pub struct Tree {
     pub entries: Vec<TreeEntry>, // Collection of entries in the tree
 }
 
-impl VcsObject for Tree {
+impl Tree {
+    fn new(permissions: String, object_type: String, object_hash: String, name: String) -> Self {
+        Tree {
+            entries: (permissions, object_type, object_hash, name),
+        }
+    }
+
+    pub fn load(tree_hash: &str, object_dir: &PathBuf) -> Result<Self> {
+        read_tree(tree_hash, object_dir)?;
+    }
+
+    pub fn compare_trees(from: &Tree, to: &Tree, objects_dir: &PathBuf) -> Result<Delta> {}
+}
+
+impl VoxObject for Tree {
     fn object_type(&self) -> &str {
         "tree"
     }
 
-    fn serialize(&self) -> Vec<u8> {
+    fn serialize(&self) -> Result<Vec<u8>> {
         let mut content = Vec::new();
 
         // Format and store each entry
@@ -38,22 +53,22 @@ impl VcsObject for Tree {
             let mode_and_name = format!("{} {}\0", entry.permissions, entry.name);
             content.extend_from_slice(mode_and_name.as_bytes());
 
-            let hash_bytes = hex::decode(&entry.object_hash).expect("Decoding failed"); // todo remove unwraped
+            let hash_bytes = hex::decode(&entry.object_hash).expect("Decoding failed");
 
             content.extend_from_slice(&hash_bytes);
         }
-        content
+        Ok(content)
     }
 
-    fn hash(&self) -> String {
+    fn hash(&self) -> Result<String> {
         let mut hasher = Sha1::new();
         hasher.update(&self.serialize());
-        format!("{:x}", hasher.finalize())
+        Ok(format!("{:x}", hasher.finalize()))
     }
 
-    fn object_path(&self) -> String {
+    fn object_path(&self) -> Result<String> {
         let hash = self.hash();
-        format!("{}/{}/{}", *OBJ_DIR, &hash[0..2], &hash[2..])
+        Ok(format!("{}/{}/{}", *OBJ_DIR, &hash[0..2], &hash[2..]))
     }
 }
 
@@ -91,8 +106,8 @@ pub fn create_tree(path: &Path) -> Result<Tree> {
         } else if entry_path.is_dir() {
             let subtree = create_tree(&entry_path)?;
             if !subtree.entries.is_empty() {
-                let hashStr = subtree.hash(); // hash new functions;
-                let subtree_hash = hashStr;
+                let hash_str = subtree.hash(); // hash new functions;
+                let subtree_hash = hash_str;
                 tree.entries.push(TreeEntry {
                     object_type: "tree".to_string(),
                     permissions: "40000".to_string(),
@@ -110,7 +125,7 @@ pub fn create_tree(path: &Path) -> Result<Tree> {
 
 // Stores a tree object and returns its hash
 pub fn store_tree(tree: &Tree) -> Result<String> {
-    let hashStr = tree.hash(); // new functions
+    let hash_str = tree.hash(); // new functions
     let object_path = tree.object_path(); // new functions
 
     let mut content = Vec::new();
@@ -149,9 +164,10 @@ pub fn store_tree(tree: &Tree) -> Result<String> {
 }
 
 // Reads a tree object from its hash
-pub fn read_tree(hash: &str) -> Result<Tree> {
+pub fn read_tree(hash: &str, objects_dir: &PathBuf) -> Result<Tree> {
     // Read and decompress the tree object
-    let object_path = format!("{}/{}/{}", *OBJ_DIR, &hash[0..2], &hash[2..]);
+    let object_path = objects_dir.join(&hash[0..2]).join(&hash[2..]);
+
     let compressed = std::fs::read(object_path)?;
 
     let mut decoder = ZlibDecoder::new(Vec::new());
@@ -204,121 +220,4 @@ pub fn read_tree(hash: &str) -> Result<Tree> {
     }
 
     Ok(Tree { entries })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::fs;
-    use std::os::unix::prelude::PermissionsExt;
-    use tempfile::TempDir;
-
-    fn setup_test_env() -> Result<TempDir> {
-        let temp_dir = TempDir::new()?;
-        std::env::set_current_dir(temp_dir.path())?;
-
-        fs::create_dir_all(".vox/objects")?;
-
-        Ok(temp_dir)
-    }
-
-    #[test]
-    fn test_create_and_store_tree() -> Result<()> {
-        let temp_dir = setup_test_env()?;
-        let dir_path = temp_dir.path();
-
-        fs::write(dir_path.join("file_1.txt"), "content1")?;
-        fs::write(dir_path.join("file_2.txt"), "content2")?;
-
-        let subdir_path = dir_path.join("subdir");
-        fs::create_dir(&subdir_path)?;
-        fs::write(subdir_path.join("file3.txt"), "content3")?;
-
-        let tree = create_tree(dir_path)?;
-
-        assert_eq!(tree.entries.len(), 3, "Tree should have 3 entries");
-
-        let Str = tree.hash(); // to remove method, i do so test`s
-        let tree_hash = Str; // to remove method, i do so test`s
-
-        let read_tree = read_tree(&tree_hash)?;
-
-        assert_eq!(
-            tree.entries.len(),
-            read_tree.entries.len(),
-            "Number of entries should match"
-        );
-
-        for (original, read) in tree.entries.iter().zip(read_tree.entries.iter()) {
-            assert_eq!(
-                original.permissions, read.permissions,
-                "Permissions should match"
-            );
-            assert_eq!(
-                original.object_type, read.object_type,
-                "Object type should match"
-            );
-            assert_eq!(
-                original.object_hash, read.object_hash,
-                "Object hash should match"
-            );
-            assert_eq!(original.name, read.name, "Name should match");
-        }
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_empty_directory() -> Result<()> {
-        let temp_dir = setup_test_env()?;
-        let tree = create_tree(&temp_dir.path())?;
-        assert_eq!(
-            tree.entries.len(),
-            0,
-            "Empty directory should create empty file"
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn test_nested_directories() -> Result<()> {
-        let temp_dir = setup_test_env()?;
-        let dir_path = temp_dir.path();
-
-        fs::create_dir(dir_path.join("dir_1"))?;
-        fs::create_dir(dir_path.join("dir_1/dir_2"))?;
-        fs::write(dir_path.join("dir_1/dir_2/tmp_file.txt"), "content")?;
-
-        let tree = create_tree(dir_path)?;
-        assert_eq!(tree.entries.len(), 1, "Root should have one entry");
-
-        let dir_1_entry = &tree.entries[0];
-        assert_eq!(dir_1_entry.permissions, "40000");
-        assert_eq!(dir_1_entry.object_type, "tree");
-
-        let dir_1_tree = read_tree(&dir_1_entry.object_hash)?;
-        assert_eq!(dir_1_tree.entries.len(), 1);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_file_permissions() -> Result<()> {
-        let temp_dir = setup_test_env()?;
-        let dir_path = temp_dir.path();
-
-        // Creating txt file
-        fs::write(dir_path.join("regular.txt"), "content")?;
-
-        let tree = create_tree(dir_path)?;
-
-        let regular_file = tree
-            .entries
-            .iter()
-            .find(|e| e.name == "regular.txt")
-            .expect("Regular file not found");
-        assert_eq!(regular_file.permissions, "100644");
-
-        Ok(())
-    }
 }

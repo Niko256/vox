@@ -1,4 +1,4 @@
-use super::object::{Loadable, Storable, VcsObject};
+use super::object::{Loadable, Storable, VoxObject};
 use crate::utils::OBJ_DIR;
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
@@ -18,12 +18,12 @@ pub struct Commit {
     pub message: String,          // Commit message
 }
 
-impl VcsObject for Commit {
+impl VoxObject for Commit {
     fn object_type(&self) -> &str {
         "commit"
     }
 
-    fn serialize(&self) -> Vec<u8> {
+    fn serialize(&self) -> Result<Vec<u8>> {
         let mut content = Vec::new();
 
         // Add tree ref
@@ -43,20 +43,20 @@ impl VcsObject for Commit {
         content.extend(self.message.as_bytes());
         content.extend(b"\n");
 
-        content
+        Ok(content)
     }
 
-    fn hash(&self) -> String {
+    fn hash(&self) -> Result<String> {
         let content = self.serialize();
         let mut hasher = Sha1::new();
 
         hasher.update(&content);
-        format!("{:x}", hasher.finalize())
+        Ok(format!("{:x}", hasher.finalize()))
     }
 
-    fn object_path(&self) -> String {
+    fn object_path(&self) -> Result<String> {
         let hash = self.hash();
-        format!("{}/{}/{}", *OBJ_DIR, &hash[..2], &hash[2..])
+        Ok(format!("{}/{}/{}", *OBJ_DIR, &hash[..2], &hash[2..]))
     }
 }
 

@@ -1,4 +1,4 @@
-use super::object::VcsObject;
+use super::object::VoxObject;
 use crate::utils::OBJ_DIR;
 use anyhow::{Context, Result};
 use flate2::write::ZlibEncoder;
@@ -33,24 +33,24 @@ impl Blob {
 
 /// ----------------- BLOB IMPL -------------------
 
-impl VcsObject for Blob {
+impl VoxObject for Blob {
     fn object_type(&self) -> &str {
         "blob"
     }
 
-    fn serialize(&self) -> Vec<u8> {
-        self.get_content().clone()
+    fn serialize(&self) -> Result<Vec<u8>> {
+        Ok(self.get_content().clone())
     }
 
-    fn hash(&self) -> String {
+    fn hash(&self) -> Result<String> {
         let mut hasher = Sha1::new();
         hasher.update(&self.serialize());
-        format!("{:x}", hasher.finalize())
+        Ok(format!("{:x}", hasher.finalize()))
     }
 
-    fn object_path(&self) -> String {
+    fn object_path(&self) -> Result<String> {
         let hash = self.hash();
-        format!("{}/{}/{}", *OBJ_DIR, &hash[..2], &hash[2..])
+        Ok(format!("{}/{}/{}", *OBJ_DIR, &hash[..2], &hash[2..]))
     }
 }
 
