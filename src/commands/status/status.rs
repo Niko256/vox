@@ -1,4 +1,4 @@
-use crate::commands::commit::get_current_commit;
+use crate::commands::commit::commit::get_current_commit;
 use crate::commands::index::index::Index;
 use anyhow::{Context, Result};
 use std::collections::hash_set::HashSet;

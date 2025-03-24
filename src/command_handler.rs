@@ -1,20 +1,20 @@
 use crate::cli::Commands;
 use crate::commands::branch::branch::branch_command;
 use crate::commands::branch::checkout::checkout_command;
-use crate::commands::log::log_command;
-use crate::commands::show::show_command;
-use crate::commands::write_tree::write_tree_command;
+use crate::commands::log::log::log_command;
+use crate::commands::show::show::show_command;
+use crate::commands::write_tree::write_tree::write_tree_command;
 use crate::commands::{
-    add::add_command,
-    cat_file::cat_file_command,
-    commit::commit_command,
+    add::add::add_command,
+    cat_file::cat_file::cat_file_command,
+    commit::commit::commit_command,
     config::commands::config_command,
     diff::diff::diff_command,
-    hash_object::{hash_object_command, HashObjectArgs},
+    hash_object::hash_object::{hash_object_command, HashObjectArgs},
     index::{ls_files::ls_files_command, rm_index::rm_command},
-    init::init_command,
+    init::init::init_command,
     remote::commands::remote_command,
-    status,
+    status::status::status_command,
 };
 use anyhow::Result;
 
@@ -35,7 +35,7 @@ pub fn handle_command(command: Commands) -> Result<()> {
             hash_object_command(HashObjectArgs { file_path })?;
         }
         Commands::Status => {
-            status::status_command()?;
+            status_command()?;
         }
         Commands::LsFiles { stage } => {
             ls_files_command(stage)?;

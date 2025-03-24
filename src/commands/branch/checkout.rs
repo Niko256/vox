@@ -1,5 +1,5 @@
 // Required imports for file operations, error handling, and UI
-use crate::commands::status::get_status;
+use crate::commands::status::status::get_status;
 use crate::objects::branch::Branch;
 use crate::objects::commit::Commit;
 use crate::objects::objects::Loadable;
