@@ -29,7 +29,7 @@ pub struct IndexEntry {
 
 /// Represents the index file, which tracks the state of files in the working directory.
 #[derive(Debug, Default)]
-pub struct Index {
+pub(crate) struct Index {
     pub entries: HashMap<PathBuf, IndexEntry>, // Map of file paths to their index entries
 }
 
