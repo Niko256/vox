@@ -4,8 +4,8 @@ use std::fs;
 use std::path::PathBuf;
 
 pub struct Branch {
-    pub name: String,        // Name of the branch
-    pub commit_hash: String, // Hash of the commit this branch points to
+    pub name: String,
+    pub commit_hash: String,
 }
 
 impl Branch {
