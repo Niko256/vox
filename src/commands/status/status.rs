@@ -34,10 +34,8 @@ struct FileStatus {
 }
 
 /// Computes the status of the working directory compared to the index.
-///
 /// # Arguments
 /// - `repo_path`: The path to the repository root.
-///
 pub fn get_status(
     repo_path: &Path,
 ) -> Result<(Vec<PathBuf>, Vec<PathBuf>, Vec<PathBuf>, Vec<PathBuf>)> {
