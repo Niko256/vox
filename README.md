@@ -1,40 +1,48 @@
 # Vox
 
-A lightweight version control system implemented in Rust, inspired by Git. This educational project aims to provide deep insights into how version control systems work internally.
+A lightweight version control system, inspired by Git. This educational project aims to provide insights into how version control systems work internally
 
 ## Features
 
-### Basic commands
+### Repository Management
 - `vox init` - Initialize a new repository
 - `vox status` - Show working tree status
-- `vox add <files>` - Add files to the staging area (Index)
-- `vox commit -m "message"` - Record changes to the repository
-- `vox log` - Show commit history
 
-### Object Managment
+### Staging Area (Index) Operations
+- `vox add <paths>` - Add files to the staging area
+- `vox rm [--cached] [--force] <paths>` - Remove files from working tree and/or index
+- `vox ls-files [--stage]` - Show information about files in the index
+- `vox write-tree [--path]` - Create a tree object from the current index
+
+### Object Management
 - `vox hash-object <file>` - Compute object ID and optionally creates a blob
-- `vox cat-file` - Provide content or type and size information for repository objects
-- `vox write-tree` - Create a tree object from the current index
-- `vox show [commit]` - Show various types of objects with detailed information
+- `vox cat-file [-p] [-t] [-s] <object>` - Inspect repository objects
+- `vox show <commit>` - Show detailed object information
 
-### Index Operations
-- `vox ls-files` - Show information about files in the index
-- `vox rm [--cached] files` - Remove filesfrom working tree and index
+### Commit History
+- `vox commit -m <message> [--author]` - Record changes to the repository
+- `vox log [--count]` - Show commit history
+- `vox diff [from] [to]` - Show changes between commits
 
-### Repository Information
-- `vox branch` - List, create, or delete branches
-- `vox status` - Show working tree status
+### Branching
+- `vox branch [name] [--delete] [--list]` - List, create or delete branches
+- `vox checkout <target> [--force]` - Switch branches or restore working tree files
+
+### Configuration
+- `vox config [--global] <command>` - Manage configuration settings
+- `vox remote <command>` - Manage remote repositories
 
 ## Installation
 
+### From Source
+
 1. Clone the repository:
-
 ```bash
-https://github.com/Niko256/vox.git
+git clone https://github.com/Niko256/vox.git
+cd vox
 ```
-2. Run the installaton script
 
+2. Run the installation script:
 ```bash
 ./install.sh
 ```
-The install.sh script will guide you through the installation or update process.
