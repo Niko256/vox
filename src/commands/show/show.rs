@@ -1,6 +1,6 @@
 use crate::objects::commit::Commit;
 use crate::objects::tree::read_tree;
-use crate::utils::OBJ_DIR;
+use crate::utils::{OBJ_DIR, OBJ_TYPE_BLOB, OBJ_TYPE_TREE};
 use crate::{commands::commit::commit::get_current_commit, objects::objects::Loadable};
 use anyhow::Result;
 use chrono::{DateTime, Local};
@@ -99,9 +99,9 @@ fn print_tree_info(tree_hash: &str, prefix: &str, _is_last: bool) -> Result<()> 
 
         // Colorize the entry name based on its type
         let display = match entry.object_type.as_str() {
-            "tree" => entry.name.blue(),   // Directories are blue
-            "blob" => entry.name.normal(), // Files are normal
-            _ => entry.name.red(),         // Unknown types are red
+            OBJ_TYPE_TREE => entry.name.blue(),   // Directories are blue
+            OBJ_TYPE_BLOB => entry.name.normal(), // Files are normal
+            _ => entry.name.red(),                // Unknown types are red
         };
 
         // Print the entry

@@ -14,7 +14,6 @@ use walkdir::WalkDir;
 /// - Deleted files
 /// - Untracked files
 pub fn status_command() -> Result<()> {
-    // Get the status of the repository
     let (added, modified, deleted, untracked) = get_status(Path::new("."))?;
 
     // Retrieve the current commit hash
@@ -166,10 +165,10 @@ fn print_status(
         println!("  (use \"vox restore <file>...\" to discard changes)\n");
 
         for path in modified {
-            println!("\t\x1b[31mmodified:   {}\x1b[0m", path.display()); // Red color for modified files
+            println!("\t\x1b[31mmodified:   {}\x1b[0m", path.display());
         }
         for path in deleted {
-            println!("\t\x1b[31mdeleted:    {}\x1b[0m", path.display()); // Red color for deleted files
+            println!("\t\x1b[31mdeleted:    {}\x1b[0m", path.display());
         }
         println!();
     }

@@ -1,4 +1,7 @@
-use crate::utils::OBJ_DIR;
+use crate::utils::{
+    OBJ_DIR, OBJ_TYPE_BLOB, OBJ_TYPE_COMMIT, OBJ_TYPE_DELTA, OBJ_TYPE_TAG, OBJ_TYPE_TREE,
+    UNKNOWN_TYPE,
+};
 
 use super::blob::Blob;
 use super::commit::Commit;
@@ -7,7 +10,7 @@ use super::tag::Tag;
 use super::tree::Tree;
 use anyhow::{anyhow, Result};
 use sha1::{Digest, Sha1};
-use std::path::PathBuf;
+use std::path::Path;
 use std::str::FromStr;
 
 pub trait VoxObject {
@@ -27,11 +30,11 @@ pub(crate) enum Object {
 }
 
 pub trait Storable {
-    fn save(&self, objects_dir: &PathBuf) -> Result<String>;
+    fn save(&self, objects_dir: &Path) -> Result<String>;
 }
 
 pub trait Loadable {
-    fn load(hash: &str, objects_dir: &PathBuf) -> Result<Self>
+    fn load(hash: &str, objects_dir: &Path) -> Result<Self>
     where
         Self: Sized;
 }
@@ -49,12 +52,12 @@ pub trait Mergeble {
 impl VoxObject for Object {
     fn object_type(&self) -> &str {
         match self {
-            Object::Blob(_) => "blob",
-            Object::Commit(_) => "commit",
-            Object::Tag(_) => "tag",
-            Object::Tree(_) => "tree",
-            Object::Delta(_) => "delta",
-            Object::Unknown(_) => "unknown type",
+            Object::Blob(_) => OBJ_TYPE_BLOB,
+            Object::Commit(_) => OBJ_TYPE_COMMIT,
+            Object::Tag(_) => OBJ_TYPE_TAG,
+            Object::Tree(_) => OBJ_TYPE_TREE,
+            Object::Delta(_) => OBJ_TYPE_DELTA,
+            Object::Unknown(_) => UNKNOWN_TYPE,
         }
     }
 
@@ -65,7 +68,7 @@ impl VoxObject for Object {
             Object::Tag(tag) => tag.serialize(),
             Object::Tree(tree) => tree.serialize(),
             Object::Delta(delta) => delta.serialize(),
-            Object::Unknown(data) => Ok(data.as_bytes().to_vec()),
+            Object::Unknown(_data) => Ok(_data.as_bytes().to_vec()),
         }
     }
 
@@ -91,7 +94,7 @@ impl VoxObject for Object {
             Object::Tag(tag) => tag.object_path(),
             Object::Tree(tree) => tree.object_path(),
             Object::Delta(delta) => delta.object_path(),
-            Object::Unknown(data) => {
+            Object::Unknown(_data) => {
                 let hash = self.hash()?;
                 Ok(format!(
                     "{}/{}/{}",
@@ -117,23 +120,23 @@ impl FromStr for Object {
         let object_data = parts[1];
 
         match object_type {
-            "blob" => {
+            OBJ_TYPE_BLOB => {
                 let blob = Blob::load(object_data, &*OBJ_DIR)?;
                 Ok(Object::Blob(blob))
             }
-            "commit" => {
+            OBJ_TYPE_COMMIT => {
                 let commit = Commit::load(object_data, &*OBJ_DIR)?;
                 Ok(Object::Commit(commit))
             }
-            "tree" => {
+            OBJ_TYPE_TREE => {
                 let tree = Tree::load(object_data, &*OBJ_DIR)?;
                 Ok(Object::Tree(tree))
             }
-            "tag" => {
+            OBJ_TYPE_TAG => {
                 let tag = Tag::load(object_data, &*OBJ_DIR)?;
                 Ok(Object::Tag(tag))
             }
-            "delta" => {
+            OBJ_TYPE_DELTA => {
                 let delta = Delta::load(object_data, &*OBJ_DIR)?;
                 Ok(Object::Delta(delta))
             }

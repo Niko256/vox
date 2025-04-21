@@ -4,7 +4,7 @@ use crate::objects::branch::Branch;
 use crate::objects::commit::Commit;
 use crate::objects::objects::Loadable;
 use crate::objects::tree::read_tree;
-use crate::utils::{HEAD_DIR, OBJ_DIR};
+use crate::utils::{HEAD_DIR, OBJ_DIR, OBJ_TYPE_BLOB, OBJ_TYPE_TREE};
 use anyhow::{Context, Result};
 use colored::*;
 use flate2::bufread::ZlibDecoder;
@@ -111,11 +111,11 @@ fn restore_tree(tree_hash: &str, base_path: &Path) -> Result<()> {
         pb.set_prefix(format!("Processing: {}", entry.name));
 
         match entry.object_type.as_str() {
-            "tree" => {
+            OBJ_TYPE_TREE => {
                 fs::create_dir_all(&path)?;
                 let _ = restore_tree(&entry.object_hash, &path);
             }
-            "blob" => {
+            OBJ_TYPE_BLOB => {
                 restore_blob(&entry.object_hash, &path)?;
             }
             _ => {

@@ -9,7 +9,7 @@ pub struct Branch {
 }
 
 impl Branch {
-    // Creates a new branch pointing to a specific commit
+    /// Creates a new branch pointing to a specific commit
     pub fn new(name: &str, commit_hash: &str) -> Result<Self> {
         let branch_path = Self::get_branch_path(name);
 
@@ -32,16 +32,14 @@ impl Branch {
         })
     }
 
-    // Helper method to get the filesystem path for a branch
     fn get_branch_path(name: &str) -> PathBuf {
         PathBuf::from(&*VOX_DIR).join("refs/heads").join(name)
     }
 
-    // Deletes a branch if it exists and is not the current branch
+    /// Deletes a branch if it exists and is not the current branch
     pub fn delete(&self) -> Result<()> {
         let branch_path = Self::get_branch_path(&self.name);
 
-        // Check if branch exists
         if !branch_path.exists() {
             return Err(anyhow::anyhow!("Branch '{}' doesn't exist", self.name));
         }
@@ -57,7 +55,7 @@ impl Branch {
         Ok(())
     }
 
-    // Gets the currently checked out branch
+    /// Gets the currently checked out branch
     pub fn get_current_branch() -> Result<Option<Self>> {
         let head_content = fs::read_to_string(&*HEAD_DIR)?;
 
@@ -77,7 +75,7 @@ impl Branch {
         Ok(None)
     }
 
-    // Lists all branches in the repository
+    /// Lists all branches in the repository
     pub fn list() -> Result<Vec<Self>> {
         let mut branches = Vec::new();
         let refs_path = PathBuf::from(&*VOX_DIR).join("refs/heads");
@@ -86,7 +84,6 @@ impl Branch {
             return Ok(branches);
         }
 
-        // Read all branch files from refs/heads directory
         for entry in fs::read_dir(refs_path)? {
             let entry = entry?;
             let path = entry.path();

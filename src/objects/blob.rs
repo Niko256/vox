@@ -1,5 +1,5 @@
 use super::objects::{Storable, VoxObject};
-use crate::utils::OBJ_DIR;
+use crate::utils::{OBJ_DIR, OBJ_TYPE_BLOB};
 use anyhow::{Context, Result};
 use flate2::bufread::ZlibDecoder;
 use flate2::write::ZlibEncoder;
@@ -8,7 +8,7 @@ use sha1::{Digest, Sha1};
 use std::fs;
 use std::fs::File;
 use std::io::{Read, Write};
-use std::path::PathBuf;
+use std::path::Path;
 
 pub struct Blob {
     pub data: Vec<u8>,
@@ -64,7 +64,7 @@ impl Blob {
         &self.data
     }
 
-    pub fn load(hash: &str, obj_dir: &PathBuf) -> Result<Self> {
+    pub fn load(hash: &str, obj_dir: &Path) -> Result<Self> {
         let object_path = obj_dir.join(&hash[0..2]).join(&hash[2..]);
         let compressed = std::fs::read(object_path)?;
 
@@ -87,7 +87,7 @@ impl Blob {
 
 impl VoxObject for Blob {
     fn object_type(&self) -> &str {
-        "blob"
+        OBJ_TYPE_BLOB
     }
 
     fn serialize(&self) -> Result<Vec<u8>> {
@@ -112,7 +112,7 @@ impl VoxObject for Blob {
 }
 
 impl Storable for Blob {
-    fn save(&self, objects_dir: &PathBuf) -> Result<String> {
+    fn save(&self, objects_dir: &Path) -> Result<String> {
         let mut hasher = Sha1::new();
         hasher.update(&self.data);
         let hash = format!("{:x}", hasher.finalize());

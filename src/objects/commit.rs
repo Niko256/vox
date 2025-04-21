@@ -1,7 +1,7 @@
 use super::objects::{Loadable, Storable, VoxObject};
-use super::tree::Tree;
+use super::tree::{read_tree, Tree};
 use crate::objects::delta::Delta;
-use crate::utils::OBJ_DIR;
+use crate::utils::{OBJ_DIR, OBJ_TYPE_COMMIT};
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use flate2::read::ZlibDecoder;
@@ -10,21 +10,41 @@ use flate2::Compression;
 use sha1::{Digest, Sha1};
 use std::fs;
 use std::io::{Read, Write};
-use std::path::PathBuf;
+use std::path::Path;
 
+/// Represents a commit
+///
+/// A commit records a snapshot of the repository's state at a point in time,
+/// including references to the root tree, parent commit(s), author information,
+/// and commit message.
+#[derive(PartialEq, Eq, Hash)]
 pub struct Commit {
+    /// Hash of the root tree object for this commit
     pub tree: String,
+    /// Optional hash of the parent commit
     pub parent: Option<String>,
+    /// Author of the commit (identifier)
     pub author: String,
+    /// Timestamp when the commit was created
     pub timestamp: DateTime<Utc>,
+    /// Commit message describing the changes
     pub message: String,
 }
 
 impl VoxObject for Commit {
+    /// Returns the object type ("commit")
     fn object_type(&self) -> &str {
-        "commit"
+        OBJ_TYPE_COMMIT
     }
 
+    /// Serializes the commit to bytes
+    ///
+    /// Format includes:
+    /// - tree hash
+    /// - parent hash (if exists)
+    /// - author and timestamp
+    /// - commit message
+    ///
     fn serialize(&self) -> Result<Vec<u8>> {
         let mut content = Vec::new();
 
@@ -44,6 +64,7 @@ impl VoxObject for Commit {
         Ok(content)
     }
 
+    /// Computes the SHA-1 hash of the serialized commit
     fn hash(&self) -> Result<String> {
         let content = self.serialize()?;
         let mut hasher = Sha1::new();
@@ -51,6 +72,11 @@ impl VoxObject for Commit {
         Ok(format!("{:x}", hasher.finalize()))
     }
 
+    /// Returns the storage path for this commit in the objects directory
+    ///
+    /// The path follows Git's convention: `objects/xx/yyyy...`
+    /// where xx is the first two hex digits of the hash and yyyy... is the rest
+    ///
     fn object_path(&self) -> Result<String> {
         let hash = self.hash()?;
         Ok(format!(
@@ -63,7 +89,8 @@ impl VoxObject for Commit {
 }
 
 impl Storable for Commit {
-    fn save(&self, objects_dir: &PathBuf) -> Result<String> {
+    /// Saves the commit object to the objects directory
+    fn save(&self, objects_dir: &Path) -> Result<String> {
         let hash = self.hash()?;
         let content = self.serialize()?;
 
@@ -84,7 +111,8 @@ impl Storable for Commit {
 }
 
 impl Loadable for Commit {
-    fn load(hash: &str, objects_dir: &PathBuf) -> Result<Self> {
+    /// Loads a commit object from the objects directory
+    fn load(hash: &str, objects_dir: &Path) -> Result<Self> {
         let dir_path = objects_dir.join(&hash[..2]);
         let object_path = dir_path.join(&hash[2..]);
 
@@ -109,6 +137,7 @@ impl Loadable for Commit {
 }
 
 impl Commit {
+    /// Creates a new commit
     pub fn new(
         tree_hash: String,
         parent_hash: Option<String>,
@@ -125,6 +154,12 @@ impl Commit {
         }
     }
 
+    /// Parses commit content into a Commit object
+    ///
+    /// # Arguments
+    ///
+    /// * `content` - The raw commit content to parse
+    ///
     fn parse(content: &str) -> Result<Self> {
         let mut lines = content.lines();
         let mut tree = None;
@@ -174,17 +209,84 @@ impl Commit {
     }
 }
 
-pub fn compare_commits(from_hash: &str, to_hash: &str, objects_dir: &PathBuf) -> Result<Delta> {
-    let from_commit = Commit::load(from_hash, objects_dir)?;
-    let to_commit = Commit::load(to_hash, objects_dir)?;
+/// Compares two commits and returns the differences between them as a Delta
+///
+/// This function loads both commits, their associated trees, and computes
+/// the differences between all files in those trees.
+///
+/// # Arguments
+///
+/// * `from_hash` - The hash of the source commit to compare from
+/// * `to_hash` - The hash of the target commit to compare to
+/// * `objects_dir` - Path to the objects directory containing commit and tree data
+///
+/// # Returns
+///
+/// Returns a [`Delta`] containing all changes between the commits
+///
+pub fn compare_commits(from_hash: &str, to_hash: &str, objects_dir: &Path) -> Result<Delta> {
+    // Load both commits from the object store
+    let from_commit = Commit::load(from_hash, objects_dir)
+        .with_context(|| format!("Failed to load source commit {}", from_hash))?;
+    let to_commit = Commit::load(to_hash, objects_dir)
+        .with_context(|| format!("Failed to load target commit {}", to_hash))?;
 
-    let from_tree = Tree::load(&from_commit.tree, objects_dir)?;
-    let to_tree = Tree::load(&to_commit.tree, objects_dir)?;
+    // Load the trees referenced by each commit
+    let from_tree = read_tree(&from_commit.tree, objects_dir)
+        .with_context(|| format!("Failed to load tree {}", from_commit.tree))?;
+    let to_tree = read_tree(&to_commit.tree, objects_dir)
+        .with_context(|| format!("Failed to load tree {}", to_commit.tree))?;
 
-    let mut delta = Tree::compare_trees(&from_tree, &to_tree, objects_dir)?;
+    // Compare the trees to get the delta of changes
+    let mut delta = Tree::compare_trees(&from_tree, &to_tree, objects_dir)
+        .context("Failed to compare trees")?;
 
+    // Annotate the delta with commit references
     delta.set_from(Some(from_hash.to_string()));
     delta.set_to(Some(to_hash.to_string()));
 
     Ok(delta)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_commit_serialization() -> Result<()> {
+        let commit = Commit::new(
+            "tree-hash".to_string(),
+            Some("parent-hash".to_string()),
+            "Author <author@example.com>".to_string(),
+            "Test message".to_string(),
+        );
+
+        let serialized = commit.serialize()?;
+        assert!(serialized.len() > 0);
+        Ok(())
+    }
+
+    #[test]
+    fn test_commit_save_load() -> Result<()> {
+        let temp_dir = tempdir()?;
+        let objects_dir = temp_dir.path().to_path_buf();
+
+        let commit = Commit::new(
+            "tree-hash".to_string(),
+            Some("parent-hash".to_string()),
+            "Author <author@example.com>".to_string(),
+            "Test message".to_string(),
+        );
+
+        let hash = commit.save(&objects_dir)?;
+        let loaded = Commit::load(&hash, &objects_dir)?;
+
+        assert_eq!(commit.tree, loaded.tree);
+        assert_eq!(commit.parent, loaded.parent);
+        assert_eq!(commit.author, loaded.author);
+        assert_eq!(commit.message, loaded.message);
+
+        Ok(())
+    }
 }

@@ -29,7 +29,7 @@ pub fn add_remote(name: &str, url: &str) -> Result<()> {
         ));
     }
 
-    config.add_remote(name.to_string(), url.to_string());
+    let _ = config.add_remote(name.to_string(), url.to_string());
 
     config.write_to_file(&config_path)?;
 

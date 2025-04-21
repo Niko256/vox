@@ -18,7 +18,7 @@ use crate::commands::{
 };
 use anyhow::Result;
 
-pub fn handle_command(command: Commands) -> Result<()> {
+pub async fn handle_command(command: Commands) -> Result<()> {
     match command {
         Commands::Init => {
             init_command()?;

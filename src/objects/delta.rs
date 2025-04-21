@@ -1,226 +1,223 @@
-use super::objects::VoxObject;
-use crate::utils::OBJ_DIR;
+use super::objects::{Loadable, VoxObject};
+use crate::utils::{OBJ_DIR, OBJ_TYPE_DELTA};
 use anyhow::{Context, Result};
-use flate2::bufread::ZlibDecoder;
 use serde::{Deserialize, Serialize};
-use serde_json;
 use sha1::{Digest, Sha1};
 use std::collections::HashMap;
-use std::io::Read;
-use std::path::PathBuf;
-use std::sync::Arc;
+use std::path::{Path, PathBuf};
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub(crate) enum DeltaType {
-    Added,
-    Deleted,
-    Modified,
-    Renamed,
+/// Represents a type of change to a tree entry
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DeltaType {
+    /// A file was added
+    ADDED {
+        /// Path to the new file
+        path: PathBuf,
+        /// Hash of the new file's content
+        new_hash: String,
+    },
+    /// A file was deleted
+    DELETED {
+        /// Path to the deleted file
+        path: PathBuf,
+        /// Hash of the deleted file's content
+        old_hash: String,
+    },
+    /// A file was modified
+    MODIFIED {
+        /// Path to the modified file
+        path: PathBuf,
+        /// Hash of the file's previous content
+        old_hash: String,
+        /// Hash of the file's new content
+        new_hash: String,
+        /// Summary of changes between versions
+        summary: Option<DiffSummary>,
+    },
+    /// A file was renamed
+    RENAMED {
+        /// Original path of the file
+        old_path: PathBuf,
+        /// New path of the file
+        new_path: PathBuf,
+        /// Hash of the file's content before rename
+        old_hash: String,
+        /// Hash of the file's content after rename
+        new_hash: String,
+        /// Summary of changes if content was also modified
+        summary: Option<DiffSummary>,
+    },
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub(crate) struct FileDelta {
-    pub delta_type: DeltaType,
-    pub old_path: Option<PathBuf>,
-    pub new_path: Option<PathBuf>,
-    pub old_hash: Option<String>,
-    pub new_hash: Option<String>,
-    pub diff: Option<String>,
-    pub added_lines: usize,
-    pub deleted_lines: usize,
+/// Summary of changes between two versions of a file
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DiffSummary {
+    /// Number of lines added
+    insertions: usize,
+    /// Number of lines removed
+    removals: usize,
+    /// Unified diff text showing changes
+    text_diff: Option<String>,
 }
 
+/// Collection of changes between two states of a repository
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
 pub struct Delta {
-    pub files: HashMap<PathBuf, FileDelta>,
-    pub from: Option<String>,
-    pub to: Option<String>,
+    /// Mapping of paths to their delta types
+    subdeltas: HashMap<PathBuf, DeltaType>,
+    /// Optional reference to the "from" state (commit hash, branch name, etc...)
+    from: Option<String>,
+    /// Optional reference to the "to" state (commit hash, branch name, etc...)
+    to: Option<String>,
 }
 
 impl Delta {
-    pub fn new(
-        files: HashMap<PathBuf, FileDelta>,
-        from: Option<String>,
-        to: Option<String>,
-    ) -> Self {
-        Delta { files, from, to }
+    /// Creates a new empty Delta with optional references
+    pub fn new(from: Option<String>, to: Option<String>) -> Self {
+        Delta {
+            subdeltas: HashMap::new(),
+            from,
+            to,
+        }
     }
 
-    pub fn add_file(&mut self, path: PathBuf, file_delta: FileDelta) {
-        self.files.insert(path, file_delta);
+    /// Adds a change to the delta
+    pub fn add_change(&mut self, change: DeltaType) {
+        let key = match &change {
+            DeltaType::ADDED { path, .. } => path.clone(),
+            DeltaType::DELETED { path, .. } => path.clone(),
+            DeltaType::RENAMED { new_path, .. } => new_path.clone(),
+            DeltaType::MODIFIED { path, .. } => path.clone(),
+        };
+        self.subdeltas.insert(key, change);
     }
 
-    pub fn remove_file(&mut self, path: &PathBuf) -> Result<()> {
-        self.files.remove(path).context("File not found")?;
-        Ok(())
+    /// Removes a change by path
+    pub fn remove_change(&mut self, path: &Path) -> Option<DeltaType> {
+        self.subdeltas.remove(&path.to_path_buf())
     }
 
-    pub fn get_file_delta(&self, path: &PathBuf) -> Option<&FileDelta> {
-        self.files.get(path)
-    }
-
-    pub fn set_from(&mut self, commit: Option<String>) {
-        self.from = commit;
-    }
-
-    pub fn set_to(&mut self, commit: Option<String>) {
-        self.to = commit;
-    }
-
-    pub fn filter_by_type(&self, delta_type: DeltaType) -> HashMap<&PathBuf, &FileDelta> {
-        self.files
-            .iter()
-            .filter(|(_, file_delta)| file_delta.delta_type == delta_type)
-            .collect()
-    }
-
+    /// Checks if the delta contains no changes
     pub fn is_empty(&self) -> bool {
-        self.files.is_empty()
+        self.subdeltas.is_empty()
     }
 
+    /// Returns the number of changes in the delta
     pub fn len(&self) -> usize {
-        self.files.len()
+        self.subdeltas.len()
     }
 
-    pub fn get_paths(&self) -> Arc<Vec<PathBuf>> {
-        Arc::new(self.files.keys().cloned().collect())
+    /// Collects all paths that have changes
+    pub fn collect_paths(&self) -> Vec<PathBuf> {
+        self.subdeltas.keys().cloned().collect()
     }
 
-    pub fn find_by_path_prefix(&self, prefix: &PathBuf) -> HashMap<&PathBuf, &FileDelta> {
-        self.files
+    /// Gets the change entry for a specific path
+    pub fn get_entry(&self, path: &Path) -> Option<&DeltaType> {
+        self.subdeltas.get(path)
+    }
+
+    /// Finds all changes under a specific path prefix
+    pub fn find_by_prefix(&self, prefix: &Path) -> HashMap<&PathBuf, &DeltaType> {
+        self.subdeltas
             .iter()
             .filter(|(path, _)| path.starts_with(prefix))
             .collect()
     }
 
-    pub fn apply(&self, workdir: &PathBuf) -> Result<()> {
-        for (path, file_delta) in &self.files {
-            match &file_delta.delta_type {
-                DeltaType::Added | DeltaType::Modified => {
-                    let full_path = workdir.join(path);
-                    if let Some(parent) = full_path.parent() {
-                        std::fs::create_dir_all(parent)?;
-                    }
-                    std::fs::write(&full_path, file_delta.diff.as_deref().unwrap_or(""))?;
-                }
-                DeltaType::Deleted => {
-                    let full_path = workdir.join(path);
-                    if full_path.exists() {
-                        std::fs::remove_file(full_path)?;
-                    }
-                }
-                DeltaType::Renamed => {
-                    if let (Some(old_path), Some(new_path)) =
-                        (&file_delta.old_path, &file_delta.new_path)
-                    {
-                        let old_full_p = workdir.join(old_path);
-                        let new_full_p = workdir.join(new_path);
-
-                        if old_full_p.exists() {
-                            std::fs::rename(&old_full_p, &new_full_p)?;
-                        }
-                    }
-                }
-            }
-        }
-        Ok(())
+    pub fn get(&self) -> HashMap<PathBuf, DeltaType> {
+        self.subdeltas.clone()
     }
 
-    pub fn revert(&self, workdir: &PathBuf) -> Result<()> {
-        for (path, file_delta) in &self.files {
-            let full_path = workdir.join(path);
-
-            match &file_delta.delta_type {
-                DeltaType::Added => {
-                    if full_path.exists() {
-                        std::fs::remove_file(&full_path)?;
-                    }
-                }
-                DeltaType::Deleted => {
-                    if let Some(parent) = full_path.parent() {
-                        std::fs::create_dir_all(parent)?;
-                    }
-                    std::fs::write(&full_path, file_delta.diff.as_deref().unwrap_or(""))?;
-                }
-                DeltaType::Modified => {
-                    if let Some(old_diff) = &file_delta.diff {
-                        std::fs::write(&full_path, old_diff)?;
-                    }
-                }
-                DeltaType::Renamed => {
-                    if let (Some(old_path), Some(new_path)) =
-                        (&file_delta.old_path, &file_delta.new_path)
-                    {
-                        let old_full_path = workdir.join(old_path);
-                        let new_full_path = workdir.join(new_path);
-
-                        if new_full_path.exists() {
-                            std::fs::rename(&old_full_path, &new_full_path)?;
-                        }
-                    }
-                }
-            }
-        }
-        Ok(())
+    pub fn from_ref(&self) -> Option<&String> {
+        self.from.as_ref()
     }
 
-    pub fn verify(&self) -> Result<()> {
-        for (_path, file_delta) in &self.files {
-            if let Some(old_hash) = &file_delta.old_hash {
-                let mut hasher = Sha1::new();
-                hasher.update(file_delta.diff.as_deref().unwrap_or("").as_bytes());
-                let hash = format!("{:x}", hasher.finalize());
-
-                if &hash != old_hash {
-                    return Err(anyhow::anyhow!("Hash mismatch for old content"));
-                }
-            }
-            if let Some(new_hash) = &file_delta.new_hash {
-                let mut hasher = Sha1::new();
-                hasher.update(file_delta.diff.as_deref().unwrap_or("").as_bytes());
-                let hash = format!("{:x}", hasher.finalize());
-
-                if &hash != new_hash {
-                    return Err(anyhow::anyhow!("Hash mismatch for new content"));
-                }
-            }
-        }
-        Ok(())
+    pub fn to_ref(&self) -> Option<&String> {
+        self.to.as_ref()
     }
 
-    pub fn load(hash: &str, object_dir: &PathBuf) -> Result<Self> {
-        let object_path = object_dir.join(&hash[0..2]).join(&hash[2..]);
+    pub fn from(&self) -> Option<&str> {
+        self.from.as_deref()
+    }
 
-        let compessed_data = std::fs::read(&object_path)
-            .with_context(|| format!("Failed to read delta object at {}", object_path.display()))?;
+    pub fn to(&self) -> Option<&str> {
+        self.to.as_deref()
+    }
 
-        let mut decoder = ZlibDecoder::new(&compessed_data[..]);
-        let mut decompressed_data = Vec::new();
-        decoder.read_to_end(&mut decompressed_data)?;
+    pub fn set_from(&mut self, from: Option<String>) {
+        self.from = from;
+    }
 
-        let data = String::from_utf8_lossy(&decompressed_data);
+    pub fn set_to(&mut self, to: Option<String>) {
+        self.to = to;
+    }
+}
 
-        let delta: Delta = serde_json::from_str(&data.as_ref())?;
+// Getters and setters for DiffSummary
+impl DiffSummary {
+    /// Creates a new DiffSummary
+    pub fn new(insertions: usize, removals: usize, text_diff: Option<String>) -> Self {
+        DiffSummary {
+            insertions,
+            removals,
+            text_diff,
+        }
+    }
 
-        Ok(delta)
+    pub fn insertions(&self) -> usize {
+        self.insertions
+    }
+
+    pub fn removals(&self) -> usize {
+        self.removals
+    }
+
+    pub fn get_text_diff(&self) -> Option<&String> {
+        self.text_diff.as_ref()
+    }
+
+    pub fn text_diff(&self) -> Option<&str> {
+        self.text_diff.as_deref()
+    }
+
+    pub fn set_insertions(&mut self, ins: usize) {
+        self.insertions = ins;
+    }
+
+    pub fn set_removals(&mut self, rm: usize) {
+        self.removals = rm;
+    }
+
+    pub fn set_diff(&mut self, text_diff: Option<String>) {
+        self.text_diff = text_diff;
     }
 }
 
 impl VoxObject for Delta {
+    /// Returns the object type ("delta")
     fn object_type(&self) -> &str {
-        "delta"
+        OBJ_TYPE_DELTA
     }
 
+    /// Serializes the delta to binary format
     fn serialize(&self) -> Result<Vec<u8>> {
-        Ok(serde_json::to_vec(self)?)
+        bincode::serde::encode_to_vec(self, bincode::config::standard())
+            .context("Failed to serialize Delta to binary")
     }
 
+    /// Computes the SHA-1 hash of the serialized delta
     fn hash(&self) -> Result<String> {
         let mut hasher = Sha1::new();
         hasher.update(&VoxObject::serialize(self)?);
         Ok(format!("{:x}", hasher.finalize()))
     }
 
+    /// Returns the storage path for this delta in the objects directory
+    ///
+    /// # Returns
+    ///
+    /// Returns an error if the hash cannot be computed
     fn object_path(&self) -> Result<String> {
         let hash = self.hash()?;
         Ok(format!(
@@ -229,5 +226,88 @@ impl VoxObject for Delta {
             &hash[..2],
             &hash[2..]
         ))
+    }
+}
+
+impl DeltaType {
+    pub fn get_path(&self) -> &Path {
+        match self {
+            DeltaType::ADDED { path, .. } => path,
+            DeltaType::DELETED { path, .. } => path,
+            DeltaType::MODIFIED { path, .. } => path,
+            DeltaType::RENAMED { new_path, .. } => new_path,
+        }
+    }
+
+    fn get_old_path(&self) -> Option<&PathBuf> {
+        match self {
+            DeltaType::RENAMED { old_path, .. } => Some(old_path),
+            _ => None,
+        }
+    }
+
+    pub fn path(&self) -> &Path {
+        self.get_path().iter().as_path()
+    }
+
+    pub fn old_path(&self) -> Option<&Path> {
+        self.get_old_path().map(|pb| pb.as_path())
+    }
+
+    pub fn get_pathbuf(&self) -> PathBuf {
+        self.get_path().to_path_buf()
+    }
+
+    pub fn get_old_pathbuf(&self) -> Option<PathBuf> {
+        self.get_old_path().cloned()
+    }
+
+    pub fn get_new_hash(&self) -> Option<&String> {
+        match self {
+            DeltaType::ADDED { new_hash, .. } => Some(new_hash),
+            DeltaType::MODIFIED { new_hash, .. } => Some(new_hash),
+            DeltaType::RENAMED { new_hash, .. } => Some(new_hash),
+            _ => None,
+        }
+    }
+
+    pub fn new_hash(&self) -> Option<&str> {
+        self.get_new_hash().map(|s| s.as_str())
+    }
+
+    pub fn get_old_hash(&self) -> Option<&String> {
+        match self {
+            DeltaType::DELETED { old_hash, .. } => Some(old_hash),
+            DeltaType::MODIFIED { old_hash, .. } => Some(old_hash),
+            DeltaType::RENAMED { old_hash, .. } => Some(old_hash),
+            _ => None,
+        }
+    }
+
+    pub fn old_hash(&self) -> Option<&str> {
+        self.get_old_hash().map(|s| s.as_str())
+    }
+
+    pub fn get_summary(&self) -> Option<&DiffSummary> {
+        match self {
+            DeltaType::MODIFIED { summary, .. } => summary.as_ref(),
+            DeltaType::RENAMED { summary, .. } => summary.as_ref(),
+            _ => None,
+        }
+    }
+
+    pub fn summary(&self) -> Option<&DiffSummary> {
+        self.get_summary()
+    }
+}
+
+impl Loadable for Delta {
+    fn load(hash: &str, objects_dir: &Path) -> Result<Self> {
+        let path = objects_dir.join(&hash[..2]).join(&hash[2..]);
+        let data = std::fs::read(path)?;
+
+        bincode::serde::decode_from_slice(&data, bincode::config::standard())
+            .map(|(result, _)| result)
+            .context("Failed to deserialize Delta")
     }
 }

@@ -1,6 +1,8 @@
 use crate::objects::objects::Object;
 use crate::objects::objects::VoxObject;
 use crate::utils::OBJ_DIR;
+use crate::utils::OBJ_TYPE_BLOB;
+use crate::utils::OBJ_TYPE_TREE;
 use anyhow::{Context, Result};
 use flate2::read::ZlibDecoder;
 use std::str::FromStr;
@@ -87,9 +89,9 @@ fn display_tree_content(data: &[u8]) -> Result<()> {
             "{} {} {}\t{}",
             entry.mode,
             if entry.mode.starts_with("40") {
-                "tree"
+                OBJ_TYPE_TREE
             } else {
-                "blob"
+                OBJ_TYPE_BLOB
             },
             entry.hash,
             entry.name

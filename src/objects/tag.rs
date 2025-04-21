@@ -1,5 +1,5 @@
 use super::objects::{Storable, VoxObject};
-use crate::utils::OBJ_DIR;
+use crate::utils::{OBJ_DIR, OBJ_TYPE_TAG};
 use anyhow::{anyhow, Context, Result};
 use flate2::read::ZlibDecoder;
 use flate2::write::ZlibEncoder;
@@ -7,7 +7,7 @@ use flate2::Compression;
 use sha1::{Digest, Sha1};
 use std::fs;
 use std::io::{Read, Write};
-use std::path::PathBuf;
+use std::path::Path;
 
 pub struct Tag {
     id: String,
@@ -16,7 +16,7 @@ pub struct Tag {
 
 impl VoxObject for Tag {
     fn object_type(&self) -> &str {
-        "tag"
+        OBJ_TYPE_TAG
     }
 
     fn serialize(&self) -> Result<Vec<u8>> {
@@ -43,7 +43,7 @@ impl VoxObject for Tag {
 }
 
 impl Storable for Tag {
-    fn save(&self, objects_dir: &PathBuf) -> Result<String> {
+    fn save(&self, objects_dir: &Path) -> Result<String> {
         let hash = self.hash()?;
         let content = self.serialize()?;
 
@@ -64,7 +64,7 @@ impl Storable for Tag {
 }
 
 impl Tag {
-    pub fn load(hash: &str, objects_dir: &PathBuf) -> Result<Self> {
+    pub fn load(hash: &str, objects_dir: &Path) -> Result<Self> {
         let dir_path = objects_dir.join(&hash[..2]);
         let object_path = dir_path.join(&hash[2..]);
 
