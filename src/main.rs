@@ -3,6 +3,7 @@ mod command_handler;
 mod commands;
 mod connection;
 pub mod objects;
+mod refs;
 mod utils;
 
 use clap::Parser;

@@ -7,6 +7,7 @@ edition = "2024"
 anyhow = "1.0.89"
 assert_cmd = "2.0.16"
 bincode = { version = "2.0.1", features = ["serde"] }
+bstr = "1.12.0"
 chrono = "0.4.38"
 clap = { version = "4.5.19", features = ["derive"] }
 colored = "2.2.0"
