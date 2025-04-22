@@ -2,9 +2,5 @@
 **/*.rs.bk      
 Cargo.lock     
 
-*.d              # Файлы зависимостей
-*.o              # Объектные файлы
-*.so             # Linux shared objects
-
-/debug/          # Дополнительная защита
-/release/        # Дополнительная защита
+/debug/          
+/release/       
