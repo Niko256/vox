@@ -1,5 +1,5 @@
-use super::objects::{Storable, VoxObject};
-use crate::utils::{OBJ_DIR, OBJ_TYPE_BLOB};
+use crate::storage::objects::{Storable, VoxObject};
+use crate::storage::utils::{OBJ_DIR, OBJ_TYPE_BLOB};
 use anyhow::{Context, Result};
 use flate2::bufread::ZlibDecoder;
 use flate2::write::ZlibEncoder;

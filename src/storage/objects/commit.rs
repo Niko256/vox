@@ -1,7 +1,7 @@
-use super::objects::{Loadable, Storable, VoxObject};
 use super::tree::{read_tree, Tree};
-use crate::objects::delta::Delta;
-use crate::utils::{OBJ_DIR, OBJ_TYPE_COMMIT};
+use crate::storage::objects::delta::Delta;
+use crate::storage::objects::{Loadable, Storable, VoxObject};
+use crate::storage::utils::{OBJ_DIR, OBJ_TYPE_COMMIT};
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use flate2::read::ZlibDecoder;

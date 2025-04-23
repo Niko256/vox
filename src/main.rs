@@ -2,9 +2,7 @@ mod cli;
 mod command_handler;
 mod commands;
 mod connection;
-pub mod objects;
-mod refs;
-mod utils;
+pub mod storage;
 
 use clap::Parser;
 use cli::Cli;

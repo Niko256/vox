@@ -1,5 +1,5 @@
 use crate::commands::config::config::{Config, ConfigCommands, PersistentConfig};
-use crate::utils::VOX_DIR;
+use crate::storage::utils::VOX_DIR;
 use anyhow::{Context, Result};
 use colored::Colorize;
 use lazy_static::lazy_static;

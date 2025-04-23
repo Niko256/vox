@@ -1,4 +1,4 @@
-use crate::{objects::blob::Blob, utils::OBJ_DIR};
+use crate::{storage::objects::blob::Blob, storage::utils::OBJ_DIR};
 use anyhow::Result;
 use clap::Parser;
 use std::fs;

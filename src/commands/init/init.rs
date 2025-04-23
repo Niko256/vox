@@ -1,5 +1,5 @@
 use crate::commands::index::index::Index;
-use crate::utils::{HEAD_DIR, INDEX_FILE, OBJ_DIR, REFS_DIR, VOX_DIR};
+use crate::storage::utils::{HEAD_DIR, INDEX_FILE, OBJ_DIR, REFS_DIR, VOX_DIR};
 use anyhow::{Context, Result};
 use std::fs;
 use std::path::Path;

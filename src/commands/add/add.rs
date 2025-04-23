@@ -1,5 +1,5 @@
 use crate::commands::index::index::{Index, IndexEntry};
-use crate::objects::blob::Blob;
+use crate::storage::objects::blob::Blob;
 use anyhow::{Context, Result};
 use std::{
     env,

@@ -1,5 +1,5 @@
-use super::objects::{Loadable, VoxObject};
-use crate::utils::{OBJ_DIR, OBJ_TYPE_DELTA};
+use crate::storage::objects::{Loadable, VoxObject};
+use crate::storage::utils::{OBJ_DIR, OBJ_TYPE_DELTA};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use sha1::{Digest, Sha1};

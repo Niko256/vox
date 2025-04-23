@@ -1,8 +1,8 @@
 use crate::commands::index::index::Index;
-use crate::objects::commit::Commit;
-use crate::objects::objects::Storable;
-use crate::objects::tree::{create_tree, store_tree};
-use crate::utils::{HEAD_DIR, INDEX_FILE, OBJ_DIR, VOX_DIR};
+use crate::storage::objects::commit::Commit;
+use crate::storage::objects::tree::{create_tree, store_tree};
+use crate::storage::objects::Storable;
+use crate::storage::utils::{HEAD_DIR, INDEX_FILE, OBJ_DIR, VOX_DIR};
 use anyhow::{Context, Result};
 use std::fs;
 use std::path::{Path, PathBuf};

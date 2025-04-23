@@ -1,4 +1,4 @@
-use crate::utils::{HEAD_DIR, VOX_DIR};
+use crate::storage::utils::{HEAD_DIR, VOX_DIR};
 use anyhow::Result;
 use std::fs;
 use std::path::PathBuf;

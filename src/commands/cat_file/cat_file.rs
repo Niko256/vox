@@ -1,8 +1,8 @@
-use crate::objects::objects::Object;
-use crate::objects::objects::VoxObject;
-use crate::utils::OBJ_DIR;
-use crate::utils::OBJ_TYPE_BLOB;
-use crate::utils::OBJ_TYPE_TREE;
+use crate::storage::objects::Object;
+use crate::storage::objects::VoxObject;
+use crate::storage::utils::OBJ_DIR;
+use crate::storage::utils::OBJ_TYPE_BLOB;
+use crate::storage::utils::OBJ_TYPE_TREE;
 use anyhow::{Context, Result};
 use flate2::read::ZlibDecoder;
 use std::str::FromStr;
@@ -11,8 +11,7 @@ use std::{fs::File, io::Read};
 const HASH_PREFIX_LEN: usize = 2;
 const HASH_BYTES_LEN: usize = 20;
 
-/// Represents a tree entry in vox
-struct TreeEntry<'a> {
+struct Entry<'a> {
     mode: &'a str,
     name: &'a str,
     hash: String,
@@ -73,7 +72,7 @@ fn parse_object_header(data: &[u8]) -> Result<(Object, &[u8])> {
 }
 
 fn display_type(object_type: &Object) {
-    println!("{}", object_type.object_type().to_string());
+    println!("{}", object_type.object_type());
 }
 
 fn display_size(content: &[u8]) {
@@ -102,7 +101,7 @@ fn display_tree_content(data: &[u8]) -> Result<()> {
     Ok(())
 }
 
-fn parse_tree_entry(data: &[u8]) -> Result<TreeEntry> {
+fn parse_tree_entry(data: &[u8]) -> Result<Entry> {
     let null_pos = data
         .iter()
         .position(|&b| b == 0)
@@ -117,7 +116,7 @@ fn parse_tree_entry(data: &[u8]) -> Result<TreeEntry> {
     let hash_end = hash_start + HASH_BYTES_LEN;
     let hash = hex::encode(&data[hash_start..hash_end]);
 
-    Ok(TreeEntry { mode, name, hash })
+    Ok(Entry { mode, name, hash })
 }
 
 fn display_all(object_type: &Object, content: &[u8]) -> Result<()> {

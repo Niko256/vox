@@ -1,17 +1,24 @@
-use crate::utils::{
-    OBJ_DIR, OBJ_TYPE_BLOB, OBJ_TYPE_COMMIT, OBJ_TYPE_DELTA, OBJ_TYPE_TAG, OBJ_TYPE_TREE,
-    UNKNOWN_TYPE,
-};
-
-use super::blob::Blob;
-use super::commit::Commit;
-use super::delta::Delta;
-use super::tag::Tag;
-use super::tree::Tree;
+use crate::storage::objects::blob::Blob;
+use crate::storage::objects::commit::Commit;
+use crate::storage::objects::delta::Delta;
+use crate::storage::objects::tag::Tag;
+use crate::storage::objects::tree::Tree;
 use anyhow::{anyhow, Result};
 use sha1::{Digest, Sha1};
 use std::path::Path;
 use std::str::FromStr;
+
+use crate::storage::utils::{
+    OBJ_DIR, OBJ_TYPE_BLOB, OBJ_TYPE_COMMIT, OBJ_TYPE_DELTA, OBJ_TYPE_TAG, OBJ_TYPE_TREE,
+    UNKNOWN_TYPE,
+};
+
+pub mod blob;
+pub mod branch;
+pub mod commit;
+pub mod delta;
+pub mod tag;
+pub mod tree;
 
 pub trait VoxObject {
     fn object_type(&self) -> &str;
@@ -28,6 +35,13 @@ pub(crate) enum Object {
     Delta(Delta),
     Unknown(String),
 }
+
+pub struct ObjectStorage {}
+
+// impl ObjectStorage {
+//     pub async fn write_object(&self, data: &[u8]) -> Result<String>;
+//     pub async fn read_object(&self, hash: &str) -> Result<Vec<u8>>;
+// }
 
 pub trait Storable {
     fn save(&self, objects_dir: &Path) -> Result<String>;
@@ -112,7 +126,8 @@ impl FromStr for Object {
 
     fn from_str(s: &str) -> Result<Self> {
         let parts: Vec<&str> = s.splitn(2, ' ').collect();
-        if parts.len() < 2 {
+
+        if parts.len() != 2 {
             return Err(anyhow!("Invalid object format: expected 'type data'"));
         }
 
@@ -121,23 +136,23 @@ impl FromStr for Object {
 
         match object_type {
             OBJ_TYPE_BLOB => {
-                let blob = Blob::load(object_data, &*OBJ_DIR)?;
+                let blob = Blob::load(object_data, &OBJ_DIR)?;
                 Ok(Object::Blob(blob))
             }
             OBJ_TYPE_COMMIT => {
-                let commit = Commit::load(object_data, &*OBJ_DIR)?;
+                let commit = Commit::load(object_data, &OBJ_DIR)?;
                 Ok(Object::Commit(commit))
             }
             OBJ_TYPE_TREE => {
-                let tree = Tree::load(object_data, &*OBJ_DIR)?;
+                let tree = Tree::load(object_data, &OBJ_DIR)?;
                 Ok(Object::Tree(tree))
             }
             OBJ_TYPE_TAG => {
-                let tag = Tag::load(object_data, &*OBJ_DIR)?;
+                let tag = Tag::load(object_data, &OBJ_DIR)?;
                 Ok(Object::Tag(tag))
             }
             OBJ_TYPE_DELTA => {
-                let delta = Delta::load(object_data, &*OBJ_DIR)?;
+                let delta = Delta::load(object_data, &OBJ_DIR)?;
                 Ok(Object::Delta(delta))
             }
             _ => Ok(Object::Unknown(s.to_string())),

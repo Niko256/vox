@@ -1,9 +1,8 @@
 use super::blob::Blob;
 use super::delta::{Delta, DeltaType};
-use super::objects::{Loadable, Storable, VoxObject};
 use crate::commands::diff::diff::text_diff;
-use crate::objects::delta::DiffSummary;
-use crate::utils::{OBJ_DIR, OBJ_TYPE_BLOB, OBJ_TYPE_TREE, PERM_DIR, PERM_FILE};
+use crate::storage::objects::{delta::DiffSummary, Loadable, Storable, VoxObject};
+use crate::storage::utils::{OBJ_DIR, OBJ_TYPE_BLOB, OBJ_TYPE_TREE, PERM_DIR, PERM_FILE};
 use anyhow::{Context, Result};
 use flate2::read::ZlibDecoder;
 use flate2::write::ZlibEncoder;
@@ -17,8 +16,8 @@ use std::path::{Path, PathBuf};
 /// Represents a single entry in a tree object
 #[derive(Debug)]
 pub struct TreeEntry {
-    /// Unix file permissions in string format (e.g., "100644" for regular files)
-    pub permissions: String,
+    /// Unix file permissionds in string format (e.g., "100644" for regular files)
+    pub mode: String,
     /// Type of the object
     pub object_type: String,
     /// SHA-1 hash of the referenced object
@@ -399,7 +398,7 @@ pub fn create_tree(path: &Path) -> Result<Tree> {
             let object_hash = blob.save(&PathBuf::from(&*OBJ_DIR))?;
             tree.entries.push(TreeEntry {
                 object_type: OBJ_TYPE_BLOB.to_string(),
-                permissions: PERM_FILE.to_string(), // Regular file permissions
+                mode: PERM_FILE.to_string(), // Regular file mode
                 object_hash,
                 name,
             });
@@ -410,7 +409,7 @@ pub fn create_tree(path: &Path) -> Result<Tree> {
                 let hash_str = store_tree(&subtree)?;
                 tree.entries.push(TreeEntry {
                     object_type: OBJ_TYPE_TREE.to_string(),
-                    permissions: PERM_DIR.to_string(), // Directory permissions
+                    mode: PERM_DIR.to_string(), // Directory mode
                     object_hash: hash_str,
                     name,
                 });
@@ -495,7 +494,7 @@ pub fn read_tree(hash: &str, objects_dir: &Path) -> Result<Tree> {
             .context("Invalid format: no null byte found in entry")?;
 
         let entry_meta = std::str::from_utf8(&content[pos..pos + null_pos])?;
-        let (permissions, name) = entry_meta
+        let (mode, name) = entry_meta
             .split_once(' ')
             .context("Invalid format: no space in entry metadata")?;
 
@@ -506,15 +505,15 @@ pub fn read_tree(hash: &str, objects_dir: &Path) -> Result<Tree> {
         let object_hash = hex::encode(hash_bytes);
         pos += 20;
 
-        // Determine object type from permissions
-        let object_type = if permissions.starts_with("40") {
+        // Determine object type from mode
+        let object_type = if mode.starts_with("40") {
             OBJ_TYPE_TREE.to_string()
         } else {
             OBJ_TYPE_BLOB.to_string()
         };
 
         entries.push(TreeEntry {
-            permissions: permissions.to_string(),
+            mode: mode.to_string(),
             object_type,
             object_hash,
             name: name.to_string(),
@@ -536,7 +535,7 @@ impl VoxObject for Tree {
         let mut content = Vec::new();
 
         for entry in &self.entries {
-            let mode_and_name = format!("{} {}\0", entry.permissions, entry.name);
+            let mode_and_name = format!("{} {}\0", entry.mode, entry.name);
             content.extend_from_slice(mode_and_name.as_bytes());
 
             let hash_bytes = hex::decode(&entry.object_hash).expect("Decoding failed");

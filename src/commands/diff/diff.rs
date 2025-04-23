@@ -1,6 +1,6 @@
-use crate::objects::commit::compare_commits;
-use crate::objects::delta::{Delta, DeltaType};
-use crate::utils::OBJ_DIR;
+use crate::storage::objects::commit::compare_commits;
+use crate::storage::objects::delta::{Delta, DeltaType};
+use crate::storage::utils::OBJ_DIR;
 use anyhow::{Context, Result};
 use colored::Colorize;
 use similar::{ChangeTag, TextDiff};

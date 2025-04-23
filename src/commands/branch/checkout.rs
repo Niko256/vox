@@ -1,10 +1,10 @@
 // Required imports for file operations, error handling, and UI
 use crate::commands::status::status::get_status;
-use crate::objects::branch::Branch;
-use crate::objects::commit::Commit;
-use crate::objects::objects::Loadable;
-use crate::objects::tree::read_tree;
-use crate::utils::{HEAD_DIR, OBJ_DIR, OBJ_TYPE_BLOB, OBJ_TYPE_TREE};
+use crate::storage::objects::branch::Branch;
+use crate::storage::objects::commit::Commit;
+use crate::storage::objects::tree::read_tree;
+use crate::storage::objects::Loadable;
+use crate::storage::utils::{HEAD_DIR, OBJ_DIR, OBJ_TYPE_BLOB, OBJ_TYPE_TREE};
 use anyhow::{Context, Result};
 use colored::*;
 use flate2::bufread::ZlibDecoder;
