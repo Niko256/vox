@@ -122,7 +122,7 @@ fn restore_tree(tree_hash: &str, base_path: &Path) -> Result<()> {
                 return Err(anyhow::anyhow!(
                     "Unknown object type: {}",
                     entry.object_type
-                ))
+                ));
             }
         }
         pb.inc(1);

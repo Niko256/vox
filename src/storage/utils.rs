@@ -18,3 +18,5 @@ pub const UNKNOWN_TYPE: &str = "unknown type";
 
 pub const PERM_FILE: &str = "100644";
 pub const PERM_DIR: &str = "40000";
+
+pub mod errors {}

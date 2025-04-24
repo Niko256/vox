@@ -1,6 +1,7 @@
 use crate::cli::Commands;
 use crate::commands::branch::branch::branch_command;
 use crate::commands::branch::checkout::checkout_command;
+use crate::commands::clone::clone::clone_command;
 use crate::commands::log::log::log_command;
 use crate::commands::show::show::show_command;
 use crate::commands::write_tree::write_tree::write_tree_command;
@@ -76,6 +77,9 @@ pub async fn handle_command(command: Commands) -> Result<()> {
         }
         Commands::Diff { from, to } => {
             diff_command(from, to)?;
+        }
+        Commands::Clone { url, dir } => {
+            clone_command(url, dir).await?;
         }
     }
     Ok(())
