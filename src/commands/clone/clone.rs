@@ -30,26 +30,20 @@ pub(crate) struct CloneCommand {
 pub struct CloneOptions {}
 
 impl CloneCommand {
-    fn validate_url(&self) -> Result<()>;
-    fn ensure_target_dir(&self) -> Result<()>;
-    fn configure_repository(&self, repo: &mut Repository) -> Result<()>;
-    fn setup_remotes(&self, repo: &mut Repository) -> Result<()>;
-}
-
-mod errors {
-    use core::error;
-
-    #[derive(Error, Debug)]
-    pub enum CloneErrors {
-        #[error("Failed to initialize repository")]
-        InitErr,
-
-        #[error("Failed to fetch data from remore repository")]
-        FetchErr,
-
-        #[error("Failed to checkout")]
-        CheckoutErr,
+    fn validate_url(&self) -> Result<()> {
+        !unimplemented!()
+    }
+    fn ensure_target_dir(&self) -> Result<()> {
+        !unimplemented!()
+    }
+    fn configure_repository(&self, repo: &mut Repository) -> Result<()> {
+        !unimplemented!()
+    }
+    fn setup_remotes(&self, repo: &mut Repository) -> Result<()> {
+        !unimplemented!()
     }
 }
 
-pub async fn clone_command(url: String, dir: Option<PathBuf>) -> Result<String> {}
+pub async fn clone_command(url: String, dir: Option<PathBuf>) -> Result<String> {
+    !unimplemented!()
+}

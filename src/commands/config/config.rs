@@ -4,20 +4,36 @@ use colored::Colorize;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
+use url::Url;
 
-use crate::commands::remote::commands::RemoteRepository;
+use crate::storage::repo::Repository;
 
 #[derive(Subcommand, Debug)]
 pub enum ConfigCommands {
     Show,
-
     SetUsername { username: String },
-
     SetEmail { email: String },
-
     SetUrl { url: String },
-
     SetApiKey { api_key: String },
+}
+
+#[derive(Serialize, Deserialize, Debug, Default)]
+pub struct Config {
+    user: UserConfig,
+    server: Option<ServerConfig>,
+    remotes: Vec<Repository>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Default)]
+pub struct UserConfig {
+    username: String,
+    email: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Default)]
+pub struct ServerConfig {
+    url: String,
+    api_key: Option<String>,
 }
 
 pub trait PersistentConfig: Serialize + for<'de> Deserialize<'de> + Default {
@@ -47,51 +63,32 @@ pub trait PersistentConfig: Serialize + for<'de> Deserialize<'de> + Default {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Default)]
-pub struct Config {
-    user: UserConfig,
-    server: Option<ServerConfig>,
-    remotes: Vec<RemoteRepository>,
-}
-
 impl PersistentConfig for Config {}
 
-#[derive(Serialize, Deserialize, Debug, Default)]
-pub struct UserConfig {
-    username: String,
-    email: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, Default)]
-pub struct ServerConfig {
-    url: String,
-    api_key: Option<String>,
-}
-
 impl Config {
-    pub fn set_username(&mut self, username: String) {
-        self.user.username = username;
+    pub fn set_username(&mut self, username: impl Into<String>) {
+        self.user.username = username.into();
     }
 
-    pub fn set_email(&mut self, email: String) {
-        self.user.email = email;
+    pub fn set_email(&mut self, email: impl Into<String>) {
+        self.user.email = email.into();
     }
 
-    pub fn set_url(&mut self, url: String) {
+    pub fn set_url(&mut self, url: impl Into<String>) {
         if self.server.is_none() {
             self.server = Some(ServerConfig::default());
         }
         if let Some(server) = &mut self.server {
-            server.url = url;
+            server.url = url.into();
         }
     }
 
-    pub fn set_api_key(&mut self, api_key: Option<String>) {
+    pub fn set_api_key(&mut self, api_key: impl Into<Option<String>>) {
         if self.server.is_none() {
             self.server = Some(ServerConfig::default());
         }
         if let Some(server) = &mut self.server {
-            server.api_key = api_key;
+            server.api_key = api_key.into();
         }
     }
 
@@ -113,15 +110,17 @@ impl Config {
             .and_then(|server| server.api_key.as_ref())
     }
 
-    pub fn remotes(&self) -> &Vec<RemoteRepository> {
+    pub fn remotes(&self) -> &[Repository] {
         &self.remotes
     }
 
-    pub fn add_remote(&mut self, name: String, url: String) -> Result<()> {
+    pub fn add_remote(&mut self, name: &str, url: &str, workdir: &Path) -> Result<()> {
+        let url_obj = Url::parse(url).with_context(|| format!("Invalid URL format: {}", url))?;
+
         if self
             .remotes
             .iter()
-            .any(|remote| remote.name == name || remote.url == url)
+            .any(|r| r.name == name || r.url() == Some(&url_obj))
         {
             return Err(anyhow::anyhow!(
                 "Remote with name '{}' or URL '{}' already exists",
@@ -130,7 +129,8 @@ impl Config {
             ));
         }
 
-        self.remotes.push(RemoteRepository { name, url });
+        self.remotes
+            .push(Repository::new_remote(name, workdir, url_obj));
         Ok(())
     }
 
@@ -166,7 +166,7 @@ impl Config {
         Ok(())
     }
 
-    pub fn get_remote(&self, name: &str) -> Result<&RemoteRepository> {
+    pub fn get_remote(&self, name: &str) -> Result<&Repository> {
         self.remotes
             .iter()
             .find(|remote| remote.name == name)

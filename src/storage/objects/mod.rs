@@ -38,11 +38,6 @@ pub(crate) enum Object {
 
 pub struct ObjectStorage {}
 
-// impl ObjectStorage {
-//     pub async fn write_object(&self, data: &[u8]) -> Result<String>;
-//     pub async fn read_object(&self, hash: &str) -> Result<Vec<u8>>;
-// }
-
 pub trait Storable {
     fn save(&self, objects_dir: &Path) -> Result<String>;
 }
