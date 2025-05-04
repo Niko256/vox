@@ -1,7 +1,7 @@
 use super::blob::Blob;
-use super::delta::{Delta, DeltaType};
+use super::changes::{ChangeSet, ChangeType};
 use crate::commands::diff::diff::text_diff;
-use crate::storage::objects::{delta::DiffSummary, Loadable, Storable, VoxObject};
+use crate::storage::objects::{change::DiffSummary, Loadable, Storable, VoxObject};
 use crate::storage::utils::{OBJ_DIR, OBJ_TYPE_BLOB, OBJ_TYPE_TREE, PERM_DIR, PERM_FILE};
 use anyhow::{Context, Result};
 use flate2::read::ZlibDecoder;
@@ -36,7 +36,7 @@ pub struct Tree {
 }
 
 impl Tree {
-    /// Compares two trees and generates a Delta describing all changes between them
+    /// Compares two trees and generates a ChangeSet describing all changes between them
     ///
     /// This is the main entry point that orchestrates the comparison process by:
     /// 1. Collecting all paths from both trees
@@ -51,13 +51,13 @@ impl Tree {
     ///
     /// # Returns
     ///
-    /// Returns a [`Delta`] containing all changes or an error if comparison fails
-    pub fn compare_trees(from: &Tree, to: &Tree, objects_dir: &Path) -> Result<Delta> {
-        let mut delta = Delta::new(from.hash().ok(), to.hash().ok());
+    /// Returns a [`ChangeSet`] containing all changes or an error if comparison fails
+    pub fn compare_trees(from: &Tree, to: &Tree, objects_dir: &Path) -> Result<ChangeSet> {
+        let mut changes = ChangeSet::new(from.hash().ok(), to.hash().ok());
         let all_paths = Self::collect_all_paths(from, to);
-        Self::compare_entries(&mut delta, from, to, &all_paths, objects_dir)?;
-        Self::detect_renames(&mut delta, objects_dir)?;
-        Ok(delta)
+        Self::compare_entries(&mut changes, from, to, &all_paths, objects_dir)?;
+        Self::detect_renames(&mut changes, objects_dir)?;
+        Ok(changes)
     }
 
     /// Collects all unique paths from both source and target trees
@@ -87,11 +87,11 @@ impl Tree {
     /// Compares corresponding entries across all paths in both trees
     ///
     /// For each path, determines what change occurred (addition, deletion, modification)
-    /// and records it in the Delta
+    /// and records it in the ChangeSet
     ///
     /// # Arguments
     ///
-    /// * `delta` - Mutable reference to Delta being constructed
+    /// * `changes` - Mutable reference to ChangeSet being constructed
     /// * `from` - Source tree
     /// * `to` - Target tree
     /// * `all_paths` - All paths to compare
@@ -101,7 +101,7 @@ impl Tree {
     ///
     /// Returns an error if any object fails to load during comparison
     fn compare_entries(
-        delta: &mut Delta,
+        changes: &mut ChangeSet,
         from: &Tree,
         to: &Tree,
         all_paths: &HashSet<PathBuf>,
@@ -120,7 +120,7 @@ impl Tree {
             let to_entry = to_entries.get(path_str);
 
             Self::process_entry_pair(
-                delta,
+                changes,
                 path_buf,
                 from_entry.copied(),
                 to_entry.copied(),
@@ -138,7 +138,7 @@ impl Tree {
     ///
     /// # Arguments
     ///
-    /// * `delta` - Mutable reference to Delta
+    /// * `changes` - Mutable reference to ChangeSet
     /// * `path` - Current path being processed
     /// * `from_entry` - Optional entry from source tree
     /// * `to_entry` - Optional entry from target tree
@@ -148,54 +148,54 @@ impl Tree {
     ///
     /// Returns an error if blob contents fail to load during diff calculation
     fn process_entry_pair(
-        delta: &mut Delta,
+        changes: &mut ChangeSet,
         path: &PathBuf,
         from_entry: Option<&TreeEntry>,
         to_entry: Option<&TreeEntry>,
         objects_dir: &Path,
     ) -> Result<()> {
         match (from_entry, to_entry) {
-            (None, Some(to)) => Self::handle_added(delta, path, to),
-            (Some(from), None) => Self::handle_deleted(delta, path, from),
+            (None, Some(to)) => Self::handle_added(changes, path, to),
+            (Some(from), None) => Self::handle_deleted(changes, path, from),
             (Some(from), Some(to)) if from.object_hash != to.object_hash => {
-                Self::handle_modified(delta, path, from, to, objects_dir)
+                Self::handle_modified(changes, path, from, to, objects_dir)
             }
             _ => Ok(()),
         }
     }
 
-    /// Records an added file in the Delta
+    /// Records an added file in the ChangeSet
     ///
     /// # Arguments
     ///
-    /// * `delta` - Mutable reference to Delta
+    /// * `changes` - Mutable reference to ChangeSet
     /// * `path` - Path where addition occurred
     /// * `to` - New tree entry
-    fn handle_added(delta: &mut Delta, path: &PathBuf, to: &TreeEntry) -> Result<()> {
-        delta.add_change(DeltaType::ADDED {
+    fn handle_added(changes: &mut ChangeSet, path: &PathBuf, to: &TreeEntry) -> Result<()> {
+        changes.add_change(ChangeType::ADDED {
             path: path.clone(),
             new_hash: to.object_hash.clone(),
         });
         Ok(())
     }
 
-    /// Records a deleted file in the Delta
+    /// Records a deleted file in the ChangeSet
     ///
     /// # Arguments
     ///
-    /// * `delta` - Mutable reference to Delta
+    /// * `changes` - Mutable reference to ChangeSet
     /// * `path` - Path where deletion occurred
     /// * `from` - Removed tree entry
     ///
-    fn handle_deleted(delta: &mut Delta, path: &PathBuf, from: &TreeEntry) -> Result<()> {
-        delta.add_change(DeltaType::DELETED {
+    fn handle_deleted(changes: &mut ChangeSet, path: &PathBuf, from: &TreeEntry) -> Result<()> {
+        changes.add_change(ChangeType::DELETED {
             path: path.clone(),
             old_hash: from.object_hash.clone(),
         });
         Ok(())
     }
 
-    /// Records a modified file in the Delta
+    /// Records a modified file in the ChangeSet
     ///
     /// For blob files, calculates detailed diff summary including:
     /// - Number of insertions
@@ -204,7 +204,7 @@ impl Tree {
     ///
     /// # Arguments
     ///
-    /// * `delta` - Mutable reference to Delta
+    /// * `changes` - Mutable reference to ChangeSet
     /// * `path` - Path where modification occurred
     /// * `from` - Original version
     /// * `to` - Modified version
@@ -214,7 +214,7 @@ impl Tree {
     ///
     /// Returns an error if blob contents fail to load
     fn handle_modified(
-        delta: &mut Delta,
+        changes: &mut ChangeSet,
         path: &PathBuf,
         from: &TreeEntry,
         to: &TreeEntry,
@@ -226,7 +226,7 @@ impl Tree {
             None
         };
 
-        delta.add_change(DeltaType::MODIFIED {
+        changes.add_change(ChangeType::MODIFIED {
             path: path.clone(),
             old_hash: from.object_hash.clone(),
             new_hash: to.object_hash.clone(),
@@ -273,26 +273,26 @@ impl Tree {
 
     /// Detects file renames by matching deleted and added files with identical content
     ///
-    /// Scans the Delta for matching hash pairs between deletions and additions,
+    /// Scans the ChangeSet for matching hash pairs between deletions and additions,
     /// converting them to rename operations
     ///
     /// # Arguments
     ///
-    /// * `delta` - Mutable reference to Delta being analyzed
+    /// * `changes` - Mutable reference to ChangeSet being analyzed
     /// * `objects_dir` - Path to objects directory (unused in current implementation)
     ///
     /// # Errors
     ///
     /// Currently always returns Ok, but signature maintained for future error cases
-    fn detect_renames(delta: &mut Delta, _objects_dir: &Path) -> Result<()> {
-        let (deleted, added) = Self::collect_deleted_and_added(delta);
+    fn detect_renames(changes: &mut ChangeSet, _objects_dir: &Path) -> Result<()> {
+        let (deleted, added) = Self::collect_deleted_and_added(changes);
         let renames = Self::find_rename_candidates(&deleted, &added)?;
 
         for (old_path, new_path, hash) in renames {
-            delta.get().remove(&old_path);
-            delta.get().remove(&new_path);
+            changes.get().remove(&old_path);
+            changes.get().remove(&new_path);
 
-            delta.add_change(DeltaType::RENAMED {
+            changes.add_change(ChangeType::RENAMED {
                 old_path,
                 new_path,
                 old_hash: hash.clone(),
@@ -303,11 +303,11 @@ impl Tree {
         Ok(())
     }
 
-    /// Collects all deleted and added files from Delta, indexed by their content hash
+    /// Collects all deleted and added files from ChangeSet, indexed by their content hash
     ///
     /// # Arguments
     ///
-    /// * `delta` - Reference to Delta being analyzed
+    /// * `changes` - Reference to ChangeSet being analyzed
     ///
     /// # Returns
     ///
@@ -315,17 +315,17 @@ impl Tree {
     /// - First map: deleted files (hash -> path)
     /// - Second map: added files (hash -> path)
     fn collect_deleted_and_added(
-        delta: &Delta,
+        changes: &ChangeSet,
     ) -> (HashMap<String, PathBuf>, HashMap<String, PathBuf>) {
         let mut deleted = HashMap::new();
         let mut added = HashMap::new();
 
-        for (_, dt) in &delta.get() {
+        for (_, dt) in &changes.get() {
             match dt {
-                DeltaType::DELETED { path, old_hash } => {
+                ChangeType::DELETED { path, old_hash } => {
                     deleted.insert(old_hash.clone(), path.clone());
                 }
-                DeltaType::ADDED { path, new_hash } => {
+                ChangeType::ADDED { path, new_hash } => {
                     added.insert(new_hash.clone(), path.clone());
                 }
                 _ => {}

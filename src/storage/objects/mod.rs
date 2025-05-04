@@ -1,22 +1,25 @@
 use crate::storage::objects::blob::Blob;
+use crate::storage::objects::change::ChangeSet;
 use crate::storage::objects::commit::Commit;
-use crate::storage::objects::delta::Delta;
 use crate::storage::objects::tag::Tag;
 use crate::storage::objects::tree::Tree;
 use anyhow::{anyhow, Result};
+use async_trait::async_trait;
 use sha1::{Digest, Sha1};
 use std::path::Path;
 use std::str::FromStr;
 
 use crate::storage::utils::{
-    OBJ_DIR, OBJ_TYPE_BLOB, OBJ_TYPE_COMMIT, OBJ_TYPE_DELTA, OBJ_TYPE_TAG, OBJ_TYPE_TREE,
+    OBJ_DIR, OBJ_TYPE_BLOB, OBJ_TYPE_CHANGE, OBJ_TYPE_COMMIT, OBJ_TYPE_TAG, OBJ_TYPE_TREE,
     UNKNOWN_TYPE,
 };
 
 pub mod blob;
 pub mod branch;
+pub mod change;
 pub mod commit;
 pub mod delta;
+pub mod pack;
 pub mod tag;
 pub mod tree;
 
@@ -32,11 +35,15 @@ pub(crate) enum Object {
     Commit(Commit),
     Tree(Tree),
     Tag(Tag),
-    Delta(Delta),
+    ChangeSet(ChangeSet),
     Unknown(String),
 }
 
-pub struct ObjectStorage {}
+#[async_trait::async_trait]
+pub trait ObjectStore {
+    async fn get_object(&self, hash: &[u8; 20]) -> Result<Option<Box<dyn VoxObject>>>;
+    async fn put_object(&self, obj: Box<dyn VoxObject>) -> Result<()>;
+}
 
 pub trait Storable {
     fn save(&self, objects_dir: &Path) -> Result<String>;
@@ -49,7 +56,7 @@ pub trait Loadable {
 }
 
 pub trait Diffable {
-    fn diff(&self, other: &Self) -> Result<Delta>;
+    fn diff(&self, other: &Self) -> Result<ChangeSet>;
 }
 
 pub trait Mergeble {
@@ -65,7 +72,7 @@ impl VoxObject for Object {
             Object::Commit(_) => OBJ_TYPE_COMMIT,
             Object::Tag(_) => OBJ_TYPE_TAG,
             Object::Tree(_) => OBJ_TYPE_TREE,
-            Object::Delta(_) => OBJ_TYPE_DELTA,
+            Object::ChangeSet(_) => OBJ_TYPE_CHANGE,
             Object::Unknown(_) => UNKNOWN_TYPE,
         }
     }
@@ -76,7 +83,7 @@ impl VoxObject for Object {
             Object::Commit(commit) => commit.serialize(),
             Object::Tag(tag) => tag.serialize(),
             Object::Tree(tree) => tree.serialize(),
-            Object::Delta(delta) => delta.serialize(),
+            Object::ChangeSet(changes) => changes.serialize(),
             Object::Unknown(_data) => Ok(_data.as_bytes().to_vec()),
         }
     }
@@ -87,7 +94,7 @@ impl VoxObject for Object {
             Object::Commit(commit) => commit.hash(),
             Object::Tag(tag) => tag.hash(),
             Object::Tree(tree) => tree.hash(),
-            Object::Delta(delta) => delta.hash(),
+            Object::ChangeSet(changes) => changes.hash(),
             Object::Unknown(data) => {
                 let mut hasher = Sha1::new();
                 hasher.update(data.as_bytes());
@@ -102,7 +109,7 @@ impl VoxObject for Object {
             Object::Commit(commit) => commit.object_path(),
             Object::Tag(tag) => tag.object_path(),
             Object::Tree(tree) => tree.object_path(),
-            Object::Delta(delta) => delta.object_path(),
+            Object::ChangeSet(changes) => changes.object_path(),
             Object::Unknown(_data) => {
                 let hash = self.hash()?;
                 Ok(format!(
@@ -146,11 +153,67 @@ impl FromStr for Object {
                 let tag = Tag::load(object_data, &OBJ_DIR)?;
                 Ok(Object::Tag(tag))
             }
-            OBJ_TYPE_DELTA => {
-                let delta = Delta::load(object_data, &OBJ_DIR)?;
-                Ok(Object::Delta(delta))
+            OBJ_TYPE_CHANGE => {
+                let changes = ChangeSet::load(object_data, &OBJ_DIR)?;
+                Ok(Object::ChangeSet(changes))
             }
             _ => Ok(Object::Unknown(s.to_string())),
+        }
+    }
+}
+
+pub struct DeltaApplier {
+    base_objects: HashMap<[u8; 20], Bytes>,
+}
+
+impl DeltaApplier {
+    pub fn new() -> Self {
+        Self {
+            base_objects: HashMap::new(),
+        }
+    }
+
+    pub async fn apply_delta(
+        &mut self,
+        base_hash: &[u8; 20],
+        delta: &[u8],
+        object_store: &impl ObjectStore,
+    ) -> Result<Box<dyn VoxObject>> {
+        let base = if let Some(base) = self.base_objects.get(base_hash) {
+            base.clone()
+        } else {
+            let obj = object_store
+                .get_object(base_hash)
+                .await?
+                .ok_or(anyhow!("Missing base object"))?;
+            let data = obj.serialize()?;
+            self.base_objects.insert(*base_hash, data.into());
+            self.base_objects[base_hash].clone()
+        };
+
+        let reconstructed = apply_delta(&base, delta)?;
+
+        let type_ = Packfile::detect_type(&reconstructed)?;
+
+        match type_ {
+            ObjectType::Commit => {
+                let commit = Commit::parse(&String::from_utf8(reconstructed)?)?;
+                Ok(Box::new(commit))
+            }
+            ObjectType::Tree => {
+                let tree = Tree::parse(&reconstructed)?;
+                Ok(Box::new(tree))
+            }
+            ObjectType::Blob => {
+                let blob = Blob {
+                    data: reconstructed,
+                };
+                Ok(Box::new(blob))
+            }
+            ObjectType::Tag => {
+                let tag = Tag::parse(&String::from_utf8(reconstructed)?)?;
+                Ok(Box::new(tag))
+            }
         }
     }
 }

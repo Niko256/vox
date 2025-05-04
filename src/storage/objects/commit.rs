@@ -1,5 +1,5 @@
 use super::tree::{read_tree, Tree};
-use crate::storage::objects::delta::Delta;
+use crate::storage::objects::ChangeSet;
 use crate::storage::objects::{Loadable, Storable, VoxObject};
 use crate::storage::utils::{OBJ_DIR, OBJ_TYPE_COMMIT};
 use anyhow::{Context, Result};
@@ -160,7 +160,7 @@ impl Commit {
     ///
     /// * `content` - The raw commit content to parse
     ///
-    fn parse(content: &str) -> Result<Self> {
+    pub fn parse(content: &str) -> Result<Self> {
         let mut lines = content.lines();
         let mut tree = None;
         let mut parent = None;
@@ -209,7 +209,7 @@ impl Commit {
     }
 }
 
-/// Compares two commits and returns the differences between them as a Delta
+/// Compares two commits and returns the differences between them as a ChangeSet
 ///
 /// This function loads both commits, their associated trees, and computes
 /// the differences between all files in those trees.
@@ -222,9 +222,9 @@ impl Commit {
 ///
 /// # Returns
 ///
-/// Returns a [`Delta`] containing all changes between the commits
+/// Returns a [`ChangeSet`] containing all changes between the commits
 ///
-pub fn compare_commits(from_hash: &str, to_hash: &str, objects_dir: &Path) -> Result<Delta> {
+pub fn compare_commits(from_hash: &str, to_hash: &str, objects_dir: &Path) -> Result<ChangeSet> {
     // Load both commits from the object store
     let from_commit = Commit::load(from_hash, objects_dir)
         .with_context(|| format!("Failed to load source commit {}", from_hash))?;
@@ -237,15 +237,15 @@ pub fn compare_commits(from_hash: &str, to_hash: &str, objects_dir: &Path) -> Re
     let to_tree = read_tree(&to_commit.tree, objects_dir)
         .with_context(|| format!("Failed to load tree {}", to_commit.tree))?;
 
-    // Compare the trees to get the delta of changes
-    let mut delta = Tree::compare_trees(&from_tree, &to_tree, objects_dir)
+    // Compare the trees to get the change_set of changes
+    let mut change_set = Tree::compare_trees(&from_tree, &to_tree, objects_dir)
         .context("Failed to compare trees")?;
 
-    // Annotate the delta with commit references
-    delta.set_from(Some(from_hash.to_string()));
-    delta.set_to(Some(to_hash.to_string()));
+    // Annotate the change_set with commit references
+    change_set.set_from(Some(from_hash.to_string()));
+    change_set.set_to(Some(to_hash.to_string()));
 
-    Ok(delta)
+    Ok(change_set)
 }
 
 #[cfg(test)]

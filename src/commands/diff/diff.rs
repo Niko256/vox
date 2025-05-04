@@ -1,5 +1,5 @@
+use crate::storage::objects::change::{ChangeSet, ChangeType};
 use crate::storage::objects::commit::compare_commits;
-use crate::storage::objects::delta::{Delta, DeltaType};
 use crate::storage::utils::OBJ_DIR;
 use anyhow::{Context, Result};
 use colored::Colorize;
@@ -69,41 +69,41 @@ pub fn diff_command(from: Option<String>, to: Option<String>) -> Result<()> {
     let from_ref = from.as_deref().unwrap_or("HEAD~");
     let to_ref = to.as_deref().unwrap_or("HEAD");
 
-    let delta = compare_commits(from_ref, to_ref, &*OBJ_DIR)
+    let changes = compare_commits(from_ref, to_ref, &*OBJ_DIR)
         .with_context(|| format!("Failed to compare commits {}..{}", from_ref, to_ref))?;
 
-    print_delta(&delta).context("Failed to display diff output")?;
+    print_changes(&changes).context("Failed to display diff output")?;
 
     Ok(())
 }
 
-/// Prints the delta in human-readable format
+/// Prints the changes in human-readable format
 ///
 /// # Arguments
 ///
-/// * 'delta' - The delta to display
+/// * 'changes' - The changes to display
 ///
-fn print_delta(delta: &Delta) -> Result<()> {
+fn print_changes(changes: &ChangeSet) -> Result<()> {
     println!(
-        "Delta between {} and {}",
-        delta.from().unwrap_or("initial").yellow(),
-        delta.to().unwrap_or("working").blue()
+        "diff between {} and {}",
+        changes.from().unwrap_or("initial").yellow(),
+        changes.to().unwrap_or("working").blue()
     );
 
-    if delta.get().is_empty() {
+    if changes.get().is_empty() {
         println!("{}", "No changes".dimmed());
         return Ok(());
     } else {
         println!("Changes: ");
-        for (_path, delta_type) in &delta.get() {
-            match delta_type {
-                DeltaType::ADDED { path, .. } => {
+        for (_path, changes_type) in &changes.get() {
+            match changes_type {
+                ChangeType::ADDED { path, .. } => {
                     println!("{} {}", "A".green(), path.display());
                 }
-                DeltaType::DELETED { path, .. } => {
+                ChangeType::DELETED { path, .. } => {
                     println!("{} {}", "D".red(), path.display());
                 }
-                DeltaType::MODIFIED {
+                ChangeType::MODIFIED {
                     path,
                     old_hash: _,
                     new_hash: _,
@@ -122,7 +122,7 @@ fn print_delta(delta: &Delta) -> Result<()> {
                         }
                     }
                 }
-                DeltaType::RENAMED {
+                ChangeType::RENAMED {
                     old_path,
                     new_path,
                     old_hash: _,

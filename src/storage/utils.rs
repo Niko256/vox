@@ -13,7 +13,7 @@ pub const OBJ_TYPE_BLOB: &str = "blob";
 pub const OBJ_TYPE_COMMIT: &str = "commit";
 pub const OBJ_TYPE_TAG: &str = "tag";
 pub const OBJ_TYPE_TREE: &str = "tree";
-pub const OBJ_TYPE_DELTA: &str = "delta";
+pub const OBJ_TYPE_CHANGE: &str = "change";
 pub const UNKNOWN_TYPE: &str = "unknown type";
 
 pub const PERM_FILE: &str = "100644";

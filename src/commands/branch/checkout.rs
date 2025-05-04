@@ -1,4 +1,3 @@
-// Required imports for file operations, error handling, and UI
 use crate::commands::status::status::get_status;
 use crate::storage::objects::branch::Branch;
 use crate::storage::objects::commit::Commit;
@@ -18,7 +17,9 @@ use std::path::{Path, PathBuf};
 /// Parameters:
 /// - target: branch name or commit hash to checkout
 /// - force: whether to force checkout even with uncommitted changes
-pub fn checkout_command(target: &str, force: bool) -> Result<()> {
+pub fn checkout_command(target: &str, force: bool, workdir: Option<&Path>) -> Result<()> {
+    let workdir = workdir.unwrap_or_else(|| Path::new("."));
+
     // Check for uncommitted changes unless force flag is set
     if !force {
         let (_added, modified, deleted, untracked) = get_status(Path::new("."))?;
@@ -64,7 +65,7 @@ pub fn checkout_command(target: &str, force: bool) -> Result<()> {
 
 /// Cleans the working directory by removing all files and directories
 /// except hidden files and special directories (.vox, .git, target)
-fn clean_working_directory(path: &str) -> Result<()> {
+fn clean_working_directory(path: &Path) -> Result<()> {
     for entry in fs::read_dir(path)? {
         let entry = entry?;
         let path = entry.path();
