@@ -39,7 +39,6 @@ pub(crate) enum Object {
     Unknown(String),
 }
 
-#[async_trait::async_trait]
 pub trait ObjectStore {
     async fn get_object(&self, hash: &[u8; 20]) -> Result<Option<Box<dyn VoxObject>>>;
     async fn put_object(&self, obj: Box<dyn VoxObject>) -> Result<()>;
@@ -158,62 +157,6 @@ impl FromStr for Object {
                 Ok(Object::ChangeSet(changes))
             }
             _ => Ok(Object::Unknown(s.to_string())),
-        }
-    }
-}
-
-pub struct DeltaApplier {
-    base_objects: HashMap<[u8; 20], Bytes>,
-}
-
-impl DeltaApplier {
-    pub fn new() -> Self {
-        Self {
-            base_objects: HashMap::new(),
-        }
-    }
-
-    pub async fn apply_delta(
-        &mut self,
-        base_hash: &[u8; 20],
-        delta: &[u8],
-        object_store: &impl ObjectStore,
-    ) -> Result<Box<dyn VoxObject>> {
-        let base = if let Some(base) = self.base_objects.get(base_hash) {
-            base.clone()
-        } else {
-            let obj = object_store
-                .get_object(base_hash)
-                .await?
-                .ok_or(anyhow!("Missing base object"))?;
-            let data = obj.serialize()?;
-            self.base_objects.insert(*base_hash, data.into());
-            self.base_objects[base_hash].clone()
-        };
-
-        let reconstructed = apply_delta(&base, delta)?;
-
-        let type_ = Packfile::detect_type(&reconstructed)?;
-
-        match type_ {
-            ObjectType::Commit => {
-                let commit = Commit::parse(&String::from_utf8(reconstructed)?)?;
-                Ok(Box::new(commit))
-            }
-            ObjectType::Tree => {
-                let tree = Tree::parse(&reconstructed)?;
-                Ok(Box::new(tree))
-            }
-            ObjectType::Blob => {
-                let blob = Blob {
-                    data: reconstructed,
-                };
-                Ok(Box::new(blob))
-            }
-            ObjectType::Tag => {
-                let tag = Tag::parse(&String::from_utf8(reconstructed)?)?;
-                Ok(Box::new(tag))
-            }
         }
     }
 }

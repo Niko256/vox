@@ -9,25 +9,43 @@ use std::collections::HashMap;
 use std::io::{Cursor, Read, Write};
 use std::path::Path;
 
+use super::delta::apply_delta;
+
+/// Represents a packfile containing Vox objects in compressed form
 #[derive(Debug)]
 pub struct Packfile {
+    /// The objects contained in this packfile
     pub objects: Vec<PackObject>,
+    /// Index mapping object hashes to their locations in the packfile
     pub index: HashMap<String, ObjectLocation>,
 }
 
+/// Location information for an object within a packfile
 #[derive(Debug)]
 pub struct ObjectLocation {
+    /// Byte offset where the object starts
     pub offset: u64,
+    /// Compressed size of the object
     pub size: u32,
+    /// Type code of the object
     pub type_code: u8,
 }
 
+/// Represents a packed Vox object (either base or delta)
 #[derive(Debug)]
 pub enum PackObject {
+    /// A complete object with its raw data and type
     Base(Vec<u8>, ObjectType),
-    Delta { base_hash: String, data: Vec<u8> },
+    /// A delta-compressed object referencing a base object
+    Delta {
+        /// Hash of the base object
+        base_hash: String,
+        /// Delta instructions to reconstruct the object
+        data: Vec<u8>,
+    },
 }
 
+/// The type of a Vox object
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ObjectType {
@@ -39,6 +57,7 @@ pub enum ObjectType {
 }
 
 impl Packfile {
+    /// Creates a new empty packfile
     pub fn new() -> Self {
         Packfile {
             objects: Vec::new(),
@@ -46,13 +65,14 @@ impl Packfile {
         }
     }
 
+    /// Adds an object to the packfile
     pub fn add_object(&mut self, obj: &dyn VoxObject) -> Result<()> {
         let obj_type = match obj.object_type() {
             OBJ_TYPE_COMMIT => ObjectType::Commit,
             OBJ_TYPE_TREE => ObjectType::Tree,
             OBJ_TYPE_BLOB => ObjectType::Blob,
             OBJ_TYPE_TAG => ObjectType::Tag,
-            _ => bail!("Unsopportet object type"),
+            _ => bail!("Unsupported object type"),
         };
 
         let data = obj.serialize()?;
@@ -60,12 +80,14 @@ impl Packfile {
         Ok(())
     }
 
+    /// Serializes the packfile to a byte vector
     pub fn serialize(&mut self) -> Result<Vec<u8>> {
         let mut buffer = Vec::new();
+        // Write packfile header
         buffer.write_all(b"VOXPACK")?;
         buffer.write_u32::<BigEndian>(self.objects.len() as u32)?;
 
-        let mut offset = 12;
+        let mut offset = 12; // Header size (7 magic + 4 byte count)
 
         for obj in &self.objects {
             let (type_code, content) = match obj {
@@ -73,22 +95,26 @@ impl Packfile {
                 PackObject::Delta { base_hash, data } => (ObjectType::DeltaRef as u8, data.clone()),
             };
 
+            // Compress the object data
             let mut encoder = ZlibEncoder::new(Vec::new(), Compression::best());
             encoder.write_all(&content)?;
             let compressed = encoder.finish()?;
 
             let size = compressed.len() as u32;
             let mut header = Vec::new();
-            header.write_u8((type_code << 4) | 0x80)?;
+            header.write_u8((type_code << 4) | 0x80)?; // Type + MSB flag
             header.write_u24::<BigEndian>(size)?;
 
+            // Compute object hash
             let mut hasher = Sha1::new();
             hasher.update(&content);
             let hash = format!("{:x}", hasher.finalize());
 
+            // Write object to packfile
             buffer.write_all(&header)?;
             buffer.write_all(&compressed)?;
 
+            // Update index
             self.index.insert(
                 hash,
                 ObjectLocation {
@@ -104,6 +130,7 @@ impl Packfile {
         Ok(buffer)
     }
 
+    /// Deserializes a packfile from bytes
     pub fn deserialize(data: &[u8]) -> Result<Self> {
         let mut cursor = Cursor::new(data);
         let mut magic = [0u8; 7];
@@ -122,9 +149,11 @@ impl Packfile {
             let type_code = (first_byte >> 4) & 0x07;
             let compressed_size = cursor.read_u24::<BigEndian>()?;
 
+            // Read compressed data
             let mut compressed = vec![0u8; compressed_size as usize];
             cursor.read_exact(&mut compressed)?;
 
+            // Decompress the object
             let mut decoder = ZlibDecoder::new(&compressed[..]);
             let mut decompressed = Vec::new();
             decoder.read_to_end(&mut decompressed)?;
@@ -140,6 +169,7 @@ impl Packfile {
 
             let (obj, hash) = match obj_type {
                 ObjectType::DeltaRef => {
+                    // Delta objects store base hash in first 20 bytes
                     let mut base_hash = [0u8; 20];
                     base_hash.copy_from_slice(&decompressed[..20]);
                     let data = decompressed[20..].to_vec();
@@ -167,12 +197,13 @@ impl Packfile {
                 },
             );
 
-            offset += 4 + compressed_size as u64;
+            offset += 4 + compressed_size as u64; // 1 byte type + 3 byte size
         }
 
         Ok(pack)
     }
 
+    /// Applies delta compression to reconstruct full objects
     pub fn apply_deltas(&self, base_objects: &HashMap<String, Vec<u8>>) -> Result<Vec<Object>> {
         let mut results = Vec::new();
         for obj in &self.objects {
@@ -196,10 +227,11 @@ impl Packfile {
         Ok(results)
     }
 
+    /// Parses raw object data into the appropriate Object type
     fn parse_object(obj_type: ObjectType, data: &[u8]) -> Result<Object> {
         match obj_type {
             ObjectType::Commit => {
-                let commit = Commit::parse(&String::from_utf8(data.to_vec()))?;
+                let commit = Commit::parse(&String::from_utf8(data.to_vec())?);
                 Ok(Object::Commit(commit))
             }
             ObjectType::Tree => {
@@ -217,6 +249,7 @@ impl Packfile {
         }
     }
 
+    /// Detects the object type by examining its content
     pub fn detect_type(data: &[u8]) -> Result<ObjectType> {
         if data.starts_with(b"commit") {
             Ok(ObjectType::Commit)
@@ -228,66 +261,4 @@ impl Packfile {
             Ok(ObjectType::Blob)
         }
     }
-}
-
-fn apply_delta(base: &[u8], delta: &[u8]) -> Result<Vec<u8>> {
-    let mut result = Vec::new();
-    let mut cursor = Cursor::new(delta);
-
-    let base_size = read_size_encoding(&mut cursor)?;
-    let result_size = read_size_encoding(&mut cursor)?;
-
-    if base_size != base.len() {
-        bail!("Base size mismatch");
-    }
-
-    while cursor.position() < delta.len() as u64 {
-        let cmd = cursor.read_u8()?;
-        if cmd & 0x80 != 0 {
-            let mut offset = 0u64;
-            for i in 0..4 {
-                if cmd & (0x80 >> i) != 0 {
-                    offset |= (cursor.read_u8()? as u64) << (i * 8);
-                }
-            }
-            let mut length = 0u64;
-            for i in 4..7 {
-                if cmd & (0x80 >> i) != 0 {
-                    length |= (cursor.read_u8()? as u64) << ((i - 4) * 8);
-                }
-            }
-            if length == 0 {
-                length = 0x10000;
-            }
-
-            let start = offset as usize;
-            let end = start + length as usize;
-            result.extend_from_slice(&base[start..end]);
-        } else {
-            let length = cmd as usize;
-            let mut data = vec![0u8; length];
-            cursor.read_exact(&mut data)?;
-            result.extend(data);
-        }
-    }
-
-    if result.len() != result_size {
-        bail!("Result size mismatch");
-    }
-
-    Ok(result)
-}
-
-fn read_size_encoding<R: Read>(reader: &mut R) -> Result<usize> {
-    let mut size = 0;
-    let mut shift = 0;
-    loop {
-        let byte = reader.read_u8()?;
-        size |= ((byte & 0x7F) as usize) << shift;
-        shift += 7;
-        if (byte & 0x80) == 0 {
-            break;
-        }
-    }
-    Ok(size)
 }
