@@ -2,7 +2,7 @@ use super::tree::{read_tree, Tree};
 use crate::storage::objects::ChangeSet;
 use crate::storage::objects::{Loadable, Storable, VoxObject};
 use crate::storage::utils::{OBJ_DIR, OBJ_TYPE_COMMIT};
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use chrono::{DateTime, Utc};
 use flate2::read::ZlibDecoder;
 use flate2::write::ZlibEncoder;
@@ -207,6 +207,27 @@ impl Commit {
             message: message.join("\n"),
         })
     }
+}
+
+fn parse_identity(s: &str) -> Result<(String, String, chrono::DateTime<chrono::Utc>)> {
+    let reg = regex::Regex::new(r"(.*?)<(.*?)> (\d+) ([+-]\d{4})")?;
+
+    let captures = reg
+        .captures(s)
+        .ok_or_else(|| anyhow!("Invalid identity format"))?;
+
+    let timestamp = captures[3].parse::<i64>()?;
+    let tz_offset = captures[4].parse::<i32>()?;
+
+    let dt = chrono::DateTime::from_timestamp(timestamp, 0)
+        .ok_or_else(|| anyhow!("Invalid timestamp"))?
+        .with_timezone(&chrono::FixedOffset::east_opt(tz_offset * 60).unwrap());
+
+    Ok((
+        captures[1].to_string(),
+        captures[2].to_string(),
+        dt.to_utc(),
+    ))
 }
 
 /// Compares two commits and returns the differences between them as a ChangeSet

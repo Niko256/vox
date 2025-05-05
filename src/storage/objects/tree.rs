@@ -1,16 +1,17 @@
 use super::blob::Blob;
-use super::changes::{ChangeSet, ChangeType};
+use super::change::{ChangeSet, ChangeType};
 use crate::commands::diff::diff::text_diff;
 use crate::storage::objects::{change::DiffSummary, Loadable, Storable, VoxObject};
 use crate::storage::utils::{OBJ_DIR, OBJ_TYPE_BLOB, OBJ_TYPE_TREE, PERM_DIR, PERM_FILE};
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
+use byteorder::ReadBytesExt;
 use flate2::read::ZlibDecoder;
 use flate2::write::ZlibEncoder;
 use flate2::Compression;
 use sha1::{Digest, Sha1};
 use std::collections::{HashMap, HashSet};
 use std::fs;
-use std::io::{Read, Write};
+use std::io::{Cursor, Read, Write};
 use std::path::{Path, PathBuf};
 
 /// Represents a single entry in a tree object
@@ -359,6 +360,62 @@ impl Tree {
         }
 
         Ok(candidates)
+    }
+
+    /// Parses a tree object from raw binary data
+    ///
+    /// # Binary Format
+    /// Each entry is formatted as:
+    /// [mode] [name]\0[20-byte hash]
+    ///
+    pub fn parse(data: &[u8]) -> Result<Self> {
+        let mut entries = Vec::new();
+        let mut cursor = Cursor::new(data);
+
+        // Process entries until end of data
+        while cursor.position() < data.len() as u64 {
+            // Read mode (until space)
+            let mut mode = Vec::new();
+            loop {
+                let byte = cursor.read_u8()?;
+                if byte == b' ' {
+                    break;
+                }
+                mode.push(byte);
+            }
+
+            // Read name (until null byte)
+            let mut name = Vec::new();
+            loop {
+                let byte = cursor.read_u8()?;
+                if byte == 0 {
+                    break;
+                }
+                name.push(byte);
+            }
+
+            // Read 20-byte object hash
+            let mut hash = [0u8; 20];
+            cursor.read_exact(&mut hash)?;
+
+            // Determine object type from mode
+            let object_type = if mode.starts_with(&[b'1', b'0']) {
+                OBJ_TYPE_BLOB.to_string()
+            } else if mode.starts_with(&[b'0', b'4']) {
+                OBJ_TYPE_TREE.to_string()
+            } else {
+                bail!("Unknown object type for mode: {:?}", mode);
+            };
+
+            entries.push(TreeEntry {
+                mode: String::from_utf8(mode)?,
+                name: String::from_utf8(name)?,
+                object_type,
+                object_hash: hex::encode(hash),
+            });
+        }
+
+        Ok(Tree { entries })
     }
 }
 

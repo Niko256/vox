@@ -4,10 +4,10 @@ use crate::storage::objects::commit::Commit;
 use crate::storage::objects::tag::Tag;
 use crate::storage::objects::tree::Tree;
 use anyhow::{anyhow, Result};
-use async_trait::async_trait;
+use bytes::Bytes;
 use sha1::{Digest, Sha1};
-use std::path::Path;
 use std::str::FromStr;
+use std::{collections::HashMap, path::Path};
 
 use crate::storage::utils::{
     OBJ_DIR, OBJ_TYPE_BLOB, OBJ_TYPE_CHANGE, OBJ_TYPE_COMMIT, OBJ_TYPE_TAG, OBJ_TYPE_TREE,
