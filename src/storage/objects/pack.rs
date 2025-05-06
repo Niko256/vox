@@ -228,7 +228,7 @@ impl Packfile {
     }
 
     /// Parses raw object data into the appropriate Object type
-    fn parse_object(obj_type: ObjectType, data: &[u8]) -> Result<Object> {
+    pub fn parse_object(obj_type: ObjectType, data: &[u8]) -> Result<Object> {
         match obj_type {
             ObjectType::Commit => {
                 let commit = Commit::parse(&String::from_utf8(data.to_vec())?);

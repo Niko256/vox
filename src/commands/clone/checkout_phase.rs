@@ -1,41 +1,71 @@
 use crate::commands::branch::checkout::checkout_command;
+use crate::storage::objects::tree::Tree;
+use crate::storage::objects::{self, Object};
+use crate::storage::repo::Repository;
 use crate::storage::utils::{HEAD_DIR, REFS_DIR};
-use anyhow::Result;
+use anyhow::{anyhow, bail, Result};
+use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 
-pub struct CloneCheckout;
+use super::clone::CloneCommand;
 
-impl CloneCheckout {
-    pub fn execute(commit_hash: &str, workdir: &Path) -> Result<()> {
-        let temp_branch = "clone_temp";
-        Self::create_temp_branch(commit_hash, temp_branch)?;
+impl CloneCommand {
+    fn checkout_working_dir(
+        &self,
+        repo: &Repository,
+        objects: &HashMap<String, Object>,
+        refs: &HashMap<String, String>,
+    ) -> Result<()> {
+        let head_commit_hash = refs
+            .get("HEAD")
+            .ok_or_else(|| anyhow!("No HEAD reference found"))?;
 
-        checkout_command(temp_branch, true)?;
+        let commit = match objects.get(head_commit_hash) {
+            Some(Object::Commit(c)) => c,
+            _ => bail!("HEAD reference points to non-commit object"),
+        };
 
-        Self::rename_branch(temp_branch, "master")?;
+        let tree = match objects.get(&commit.tree) {
+            Some(Object::Tree(t)) => t,
+            _ => bail!("Commit tree not found"),
+        };
+
+        self.checkout_tree(repo.workdir(), tree, objects)?;
 
         Ok(())
     }
 
-    fn create_temp_branch(commit_hash: &str, name: &str) -> Result<()> {
-        let ref_path = REFS_DIR.join("heads").join(name);
-        if let Some(parent) = ref_path.parent() {
-            fs::create_dir_all(parent)?;
-        }
-        fs::write(ref_path, format!("{}\n", commit_hash))?;
-        Ok(())
-    }
+    fn checkout_tree(
+        &self,
+        path: &Path,
+        tree: &Tree,
+        objects: &HashMap<String, Object>,
+    ) -> Result<()> {
+        std::fs::create_dir_all(path)?;
 
-    fn rename_branch(from: &str, to: &str) -> Result<()> {
-        let from_path = REFS_DIR.join("heads").join(from);
-        let to_path = REFS_DIR.join("heads").join(to);
-        fs::rename(from_path, to_path)?;
+        for entry in &tree.entries {
+            let entry_path = path.join(&entry.name);
 
-        let head_content = fs::read_to_string(&*HEAD_DIR)?;
-        if head_content.contains(from) {
-            fs::write(&*HEAD_DIR, format!("ref: refs/heads/{}\n", to))?;
+            match entry.object_type.as_str() {
+                "blob" => {
+                    let blob = match objects.get(&entry.object_hash) {
+                        Some(Object::Blob(b)) => b,
+                        _ => bail!("Missing blob {}", entry.object_hash),
+                    };
+                    std::fs::write(entry_path, &blob.data)?;
+                }
+                "tree" => {
+                    let subtree = match objects.get(&entry.object_hash) {
+                        Some(Object::Tree(t)) => t,
+                        _ => bail!("Missing tree {}", entry.object_hash),
+                    };
+                    self.checkout_tree(&entry_path, subtree, objects)?;
+                }
+                _ => bail!("Unsupported object type in tree"),
+            }
         }
+
         Ok(())
     }
 }
