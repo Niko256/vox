@@ -110,14 +110,14 @@ impl CloneCommand {
     }
 }
 
-pub async fn clone(
+pub async fn clone_command(
     url: impl AsRef<str>,
     target_dir: impl AsRef<Path>,
     config: Option<Config>,
 ) -> Result<()> {
     let url = Url::parse(url.as_ref())?;
     let target_dir = target_dir.as_ref().to_path_buf();
-    
+
     let cmd = CloneCommand::new(url, target_dir, config);
     cmd.execute().await
 }

@@ -276,3 +276,42 @@ pub fn apply_delta(base: &[u8], delta: &[u8]) -> Result<Vec<u8>> {
 
     Ok(result)
 }
+
+#[cfg(tests)]
+mod tests {
+    use super::*;
+
+    fn create_test_delta(base_size: usize, result_size: usize, ops: Vec<DeltaOp>) -> Vec<u8> {
+        unimplemented!()
+    }
+
+    #[test]
+    fn test_read_size() {}
+
+    #[test]
+    fn test_parse_header() {}
+
+    #[test]
+    fn test_parse_copy() {}
+
+    #[test]
+    fn test_parse_insert() {}
+
+    #[test]
+    fn test_64kb_copy() {}
+
+    #[test]
+    fn test_apply_simple_delta() {}
+
+    #[test]
+    fn test_apply_complex_delta() {}
+
+    #[test]
+    fn test_copy_out_of_bounds() {}
+
+    #[test]
+    fn test_result_size_mismatch() {}
+
+    #[test]
+    fn test_multiple_inserts() {}
+}
