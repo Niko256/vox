@@ -232,7 +232,7 @@ impl Packfile {
         match obj_type {
             ObjectType::Commit => {
                 let commit = Commit::parse(&String::from_utf8(data.to_vec())?);
-                Ok(Object::Commit(commit))
+                Ok(Object::Commit(commit?))
             }
             ObjectType::Tree => {
                 let tree = Tree::parse(data)?;

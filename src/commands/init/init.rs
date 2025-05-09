@@ -22,7 +22,7 @@ pub fn init_command() -> Result<()> {
 #[cfg(test)]
 mod tests {
 
-    use crate::commands::init::init_command;
+    use crate::commands::init::init::init_command;
     use assert_cmd::Command;
     use std::fs;
     use tempfile::TempDir;

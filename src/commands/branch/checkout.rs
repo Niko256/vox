@@ -47,7 +47,7 @@ pub fn checkout_command(target: &str, force: bool, workdir: Option<&Path>) -> Re
     let commit = Commit::load(&commit_hash, &PathBuf::from(&*OBJ_DIR))?;
 
     // Clean working directory before checkout
-    clean_working_directory(".")?;
+    clean_working_directory(Path::new("."));
 
     // Restore files from commit's tree
     restore_tree(&commit.tree, Path::new("."))?;

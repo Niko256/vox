@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use crate::cli::Commands;
 use crate::commands::branch::branch::branch_command;
 use crate::commands::branch::checkout::checkout_command;
@@ -67,7 +69,7 @@ pub async fn handle_command(command: Commands) -> Result<()> {
             branch_command(name, delete, list)?;
         }
         Commands::Checkout { target, force } => {
-            checkout_command(&target, force)?;
+            checkout_command(&target, force, None)?;
         }
         Commands::Config { global, config_cmd } => {
             config_command(global, &config_cmd)?;
@@ -79,7 +81,8 @@ pub async fn handle_command(command: Commands) -> Result<()> {
             diff_command(from, to)?;
         }
         Commands::Clone { url, dir } => {
-            clone_command(url, dir).await?;
+            let dir = dir.unwrap_or_else(|| PathBuf::from("."));
+            clone_command(url, dir, None).await?;
         }
     }
     Ok(())

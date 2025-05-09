@@ -1,4 +1,4 @@
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use std::ops::Range;
 
 /// Represents a single delta operation - either Copy or Insert
@@ -204,6 +204,9 @@ impl<'a> Delta<'a> {
                 break;
             }
             shift += 7;
+            if shift >= usize::BITS {
+                bail!("Variable-length size exceeds maximum for usize");
+            }
         }
         Ok(size)
     }
@@ -231,7 +234,9 @@ pub fn apply_delta(base: &[u8], delta: &[u8]) -> Result<Vec<u8>> {
     let mut parser = Delta::new(delta);
 
     // 1: Parse header and validate
-    let (base_size, result_size) = parser.parse_header()?;
+    let (base_size, result_size) = parser
+        .parse_header()
+        .context("Failed to parse delta header")?;
     if base.len() != base_size {
         bail!(
             "Base size mismatch (expected {}, got {})",
@@ -241,15 +246,18 @@ pub fn apply_delta(base: &[u8], delta: &[u8]) -> Result<Vec<u8>> {
     }
 
     // 2: Parse all operations
-    let ops = parser.parse_ops()?;
+    let ops = parser
+        .parse_ops()
+        .context("Failed to parse delta opearations")?;
 
     // 3: Apply operations
     let mut result = Vec::with_capacity(result_size);
     for op in ops {
         match op {
             DeltaOp::Copy { offset, length } => {
-                let end = offset + length;
-                if end > base.len() {
+                let end = offset.checked_add(length).context("Copy length overflow")?;
+
+                if offset >= base.len() || end > base.len() {
                     bail!(
                         "Copy range {}-{} exceeds base size {}",
                         offset,
@@ -268,7 +276,7 @@ pub fn apply_delta(base: &[u8], delta: &[u8]) -> Result<Vec<u8>> {
     // 4: Verify final size matches header
     if result.len() != result_size {
         bail!(
-            "Result size mismatch (expected {}, got {})",
+            "Result size mismatch (header expected {} bytes, got {} bytes in reconstructed data)",
             result_size,
             result.len()
         );
@@ -277,41 +285,210 @@ pub fn apply_delta(base: &[u8], delta: &[u8]) -> Result<Vec<u8>> {
     Ok(result)
 }
 
-#[cfg(tests)]
+#[cfg(test)]
 mod tests {
     use super::*;
+    use assert_matches::assert_matches;
 
-    fn create_test_delta(base_size: usize, result_size: usize, ops: Vec<DeltaOp>) -> Vec<u8> {
-        unimplemented!()
+    #[test]
+    fn test_parse_header() {
+        let data = [0x01, 0x01]; // base = 1, result = 1
+        let mut parser = Delta::new(&data);
+        assert_eq!(parser.parse_header().unwrap(), (1, 1));
+
+        let data = [0x80, 0x01, 0x80, 0x01];
+
+        // Size encoding:
+        // Byte:
+        // ------|-------|--------
+        // Byte 0: 1     | Value0 (7 bits)
+        // Byte 1: 1     | Value1 (next 7 bits)
+        // ...
+        // Last Byte: 0 | ValueN (7 bits)
+        // Size = Value0 + (Value1 << 7) + (Value2 << 14) + ... + (ValueN << (7*N))
+
+        // So data = [0x80, 0x01, 0x80, 0x01] represents base_size = 128, result_size = 128
+
+        let mut parser = Delta::new(&data);
+        assert_eq!(parser.parse_header().unwrap(), (128, 128));
+
+        // Size 0xFFFFFFFF (4294967295)
+        // Need 5 bytes:
+        // 0xFF & 0x7F = 0x7F
+        // (0xFF & 0x7F) << 7 = 0x3F80
+        // (0xFF & 0x7F) << 14 = 0x1FC000
+        // (0xFF & 0x7F) << 21 = 0xFE00000
+        // (0x0F & 0x7F) << 28 = 0x780000000 -> Error in manual calculation, needs check with code
+        // byte = 0xFF (MSB set, value 0x7F), size |= 0x7F << 0
+        // byte = 0xFF (MSB set, value 0x7F), size |= 0x7F << 7
+        // byte = 0xFF (MSB set, value 0x7F), size |= 0x7F << 14
+        // byte = 0xFF (MSB set, value 0x7F), size |= 0x7F << 21
+        // byte = 0x0F (MSB not set, value 0x0F), size |= 0x0F << 28, break.
+        // Size = 0x7F + (0x7F << 7) + (0x7F << 14) + (0x7F << 21) + (0x0F << 28)
+        // This adds up to 0xFFFFFFFF. So the data [0xFF; 4] ++ [0x0F] should represent 0xFFFFFFFF
+
+        let data = [0xFF, 0xFF, 0xFF, 0xFF, 0x0F, 0xFF, 0xFF, 0xFF, 0xFF, 0x0F]; // base = 0xFFFFFFFF, result = 0xFFFFFFFF
+        let mut parser = Delta::new(&data);
+        assert_eq!(
+            parser.parse_header().unwrap(),
+            (0xFFFFFFFF as usize, 0xFFFFFFFF as usize)
+        );
     }
 
     #[test]
-    fn test_read_size() {}
+    fn test_parse_copy() {
+        use DeltaOp::Copy;
+
+        // cmd = 0x90 = 1001_0000 (Copy, Length bit 4) -> offset flags 0x00 (none), length flags 0x10 (byte 0)
+        // Next byte = 0x05 -> length 5, offset 0
+        //
+        let data = [0x90, 0x05];
+        let mut parser = Delta::new(&data);
+        let ops = parser.parse_ops().unwrap();
+        assert_eq!(ops.len(), 1);
+        assert_matches!(
+            ops[0],
+            Copy {
+                offset: 0,
+                length: 5
+            }
+        );
+
+        // cmd = 0x70 = 0111_0000 (Copy, Length bits 4,5,6) -> offset flags 0x00 (none), length flags 0x70 (bytes 0,1,2)
+        // Next 3 bytes encode length. if those bytes were 0x00 0x00 0x00 -> length 0 -> special case 64KB
+        let data = [0xF0, 0x00, 0x00, 0x00]; // cmd = 0xF0 = 1111_0000 (Copy, offset none, length bits 4,5,6)
+                                             // next 3 bytes 0,0,0 -> length 0. Special case = 64KB. offset 0
+
+        let mut parser = Delta::new(&data);
+        let ops = parser.parse_ops().unwrap();
+        assert_eq!(ops.len(), 1);
+        assert_matches!(
+            ops[0],
+            Copy {
+                offset: 0,
+                length: 0x10000
+            }
+        ); // length 65536
+
+        // cmd = 0x91 = 1001_0001 (Copy, Offset bit 0, Length bit 4)
+        // Next byte O0 = 0x06 -> offset = 6
+        // Next byte L0 = 0x06 -> length = 6
+
+        let data = [0x91, 0x06, 0x06]; // cmd = 0x91, offset = 6 (byte 0), length = 6 (byte 0)
+        let mut parser = Delta::new(&data);
+        let ops = parser.parse_ops().unwrap();
+        assert_eq!(ops.len(), 1);
+        assert_matches!(
+            ops[0],
+            Copy {
+                offset: 6,
+                length: 6
+            }
+        );
+
+        // cmd = 0xFF = 1111_1111 (Copy, Offset bits 0-3, Length bits 4-6)
+        // O0..O3 = 01 00 00 00 -> offset = 1 (bytes follow in little-endian order)
+        // L0..L2 = 80 02 00 -> length = 0x80 + (0x02 << 8) = 0x80 + 0x200 = 0x280
+        // Data: FF 01 00 00 00 80 02 00
+        // Indices:  0  1  2  3  4  5  6  7
+
+        let data = [0xFF, 0x01, 0x00, 0x00, 0x00, 0x80, 0x02, 0x00];
+        let mut parser = Delta::new(&data);
+        let ops = parser.parse_ops().unwrap();
+        assert_eq!(ops.len(), 1);
+        assert_matches!(
+            ops[0],
+            Copy {
+                offset: 0x00000001, // O0 = 1
+                length: 0x00000280  // L0 = 0x80, L1 = 0x02, L2 = 0x00
+            }
+        );
+    }
 
     #[test]
-    fn test_parse_header() {}
+    fn test_parse_insert() {
+        use DeltaOp::Insert;
+
+        // Length = 3, data = 'abc'
+        let data = [0x03, b'a', b'b', b'c']; // cmd = 3 (Insert length 3)
+        let mut parser = Delta::new(&data);
+        let ops = parser.parse_ops().unwrap();
+        assert_eq!(ops.len(), 1);
+
+        // Fix: Use if let to match and bind, then assert equality on the data
+        if let Insert(d) = &ops[0] {
+            assert_eq!(d, b"abc");
+        } else {
+            panic!("Expected Insert operation");
+        }
+        // Or, using assert_matches with guard:
+        // assert_matches!(ops[0], Insert(d) if d == b"abc");
+
+        // Length = 2, data = 'ab', then Length = 3, data = 'cde'
+        let data = [0x02, b'a', b'b', 0x03, b'c', b'd', b'e'];
+        let mut parser = Delta::new(&data);
+        let ops = parser.parse_ops().unwrap();
+        assert_eq!(ops.len(), 2);
+
+        if let Insert(d1) = &ops[0] {
+            assert_eq!(d1, b"ab");
+        } else {
+            panic!("Expected Insert operation at index 0");
+        }
+
+        if let Insert(d2) = &ops[1] {
+            assert_eq!(d2, b"cde");
+        } else {
+            panic!("Expected Insert operation at index 1");
+        }
+        // Or:
+        // assert_matches!(ops[0], Insert(d) if d == b"ab");
+        // assert_matches!(ops[1], Insert(d) if d == b"cde");
+    }
 
     #[test]
-    fn test_parse_copy() {}
+    fn test_apply_delta() {
+        // Base and Result are identical
+        let base = b"Hello world";
 
-    #[test]
-    fn test_parse_insert() {}
+        // Delta: base_size = 11 (0x0B), result_size = 11 (0x0B)
+        // Op: COPY offset = 0, length = 11. Cmd = 0x80 | offset_flags = 0x00 | length_flags = 0x10 = 0x90
+        // Bytes for op: 0x90, L0 = 11 (0x0B)
+        let delta = [
+            0x0B, 0x0B, // base_size = 11, result_size = 11
+            0x90, 0x0B, // COPY offset = 0 (no flags), length = 11 (flag 4, byte 0x0B)
+        ];
 
-    #[test]
-    fn test_64kb_copy() {}
+        let result = apply_delta(base, &delta).unwrap();
+        assert_eq!(result, b"Hello world");
 
-    #[test]
-    fn test_apply_simple_delta() {}
+        // Base = "Hello", insert " w!" at the end. Result = "Hello w!"
+        let base = b"Hello";
+        // Delta: base_size = 5 (0x05), result_size = 8 (0x08)
+        // Op 1: COPY offset = 0, length = 5. Cmd = 0x90, L0 = 5 (0x05) -> [0x90, 0x05]
+        // Op 2: INSERT " w!". Cmd = 3 (length 3). Data: [0x20, 0x77, 0x21] -> [0x03, 0x20, 0x77, 0x21]
 
-    #[test]
-    fn test_apply_complex_delta() {}
+        let delta = [
+            0x05, 0x08, // base_size = 5, result_size = 8
+            0x90, 0x05, // COPY offset = 0, length = 5
+            0x03, b' ', b'w', b'!', // INSERT length = 3, data = " w!"
+        ];
+        let result = apply_delta(base, &delta).unwrap();
+        assert_eq!(result, b"Hello w!"); // Fixed expected result
 
-    #[test]
-    fn test_copy_out_of_bounds() {}
+        // Copy two parts from base
+        let base = b"Hello world, welcome to Vox"; // len 26
 
-    #[test]
-    fn test_result_size_mismatch() {}
+        // Delta: base_size=26 (0x1A), result_size=12 (0x0C)
+        // Op 1: COPY "Hello " (offset 0, len 6). Cmd=0x90, L0=6 (0x06) -> [0x90, 0x06]
+        // Op 2: COPY "world," (offset 6, len 6). Cmd=0x91 (offset bit 0, length bit 4), O0=6 (0x06), L0=6 (0x06) -> [0x91, 0x06, 0x06]
 
-    #[test]
-    fn test_multiple_inserts() {}
+        let delta = [
+            0x1B, 0x0C, // base_size = 26, result_size = 12
+            0x90, 0x06, // COPY offset = 0, length = 6
+            0x91, 0x06, 0x06, // COPY offset = 6, length = 6
+        ];
+        let result = apply_delta(base, &delta).unwrap();
+        assert_eq!(result, b"Hello world,");
+    }
 }

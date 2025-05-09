@@ -100,11 +100,9 @@ impl Tag {
         let timestamp = caps[3].parse::<i64>()?;
         let timezone_offset = caps[4].parse::<i32>()? * 36; // Convert HHMM to seconds
 
-        let dt = NaiveDateTime::from_timestamp_opt(timestamp, 0)
+        let dt = DateTime::from_timestamp(timestamp, 0)
             .ok_or_else(|| anyhow!("Invalid timestamp: {}", timestamp))?
-            .and_local_timezone(FixedOffset::east_opt(timezone_offset).unwrap())
-            .single() // Handle the LocalResult
-            .ok_or_else(|| anyhow!("Invalid timestamp conversion"))?
+            .with_timezone(&FixedOffset::east_opt(timezone_offset).unwrap())
             .to_utc();
 
         Ok((name, email, dt))
