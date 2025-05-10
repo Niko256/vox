@@ -1,6 +1,11 @@
+use anyhow::Context;
 use serde::{Deserialize, Serialize};
+use serde_json::value::Index;
 use std::path::{Path, PathBuf};
+use tokio::{fs, io};
 use url::Url;
+
+use crate::storage::utils::{HEAD_DIR, INDEX_FILE, OBJ_DIR, REFS_DIR, VOX_DIR};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum RepoType {
@@ -48,6 +53,34 @@ impl Repository {
 
     pub fn workdir(&self) -> &Path {
         &self.workdir
+    }
+
+    pub async fn init(path: &Path) -> Result<Self> {
+        let repo = Self {
+            name: String::new(),
+            workdir: path.to_path_buf(),
+            repo_type: RepoType::Local,
+        };
+
+        fs::create_dir_all(&*VOX_DIR)
+            .await
+            .context("Failed to create .vox directory")?;
+        fs::create_dir_all(&*OBJ_DIR)
+            .await
+            .context("Failed to create .vox/objects directory")?;
+        fs::create_dir_all(&*REFS_DIR)
+            .await
+            .context("Failed to create .vox/refs directory")?;
+        fs::write(&*HEAD_DIR, "ref: refs/heads/main\n")
+            .await
+            .context("Failed to write to .vox/HEAD file")?;
+
+        Ok(repo)
+    }
+
+    pub async fn is_initialized(path: &Path) -> Result<bool, io::Error> {
+        let vox_dir = path.join(".vox");
+        Ok(vox_dir.exists())
     }
 }
 

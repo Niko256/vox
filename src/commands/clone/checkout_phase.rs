@@ -1,17 +1,16 @@
-use crate::commands::branch::checkout::checkout_command;
-use crate::storage::objects::tree::Tree;
-use crate::storage::objects::{self, Object};
-use crate::storage::repo::Repository;
-use crate::storage::utils::{HEAD_DIR, REFS_DIR};
-use anyhow::{anyhow, bail, Result};
-use std::collections::HashMap;
-use std::fs;
-use std::path::Path;
-
+// checkout_phase.rs
 use super::clone::CloneCommand;
+use crate::storage::objects::tree::Tree;
+use crate::storage::objects::Object;
+use crate::storage::repo::Repository;
+use crate::storage::utils::{OBJ_TYPE_BLOB, OBJ_TYPE_TREE};
+use anyhow::{anyhow, bail, Result};
+use std::collections::{HashMap, VecDeque};
+use std::path::Path;
+use tokio::fs;
 
 impl CloneCommand {
-    fn checkout_working_dir(
+    pub async fn checkout_workdir(
         &self,
         repo: &Repository,
         objects: &HashMap<String, Object>,
@@ -31,38 +30,41 @@ impl CloneCommand {
             _ => bail!("Commit tree not found"),
         };
 
-        self.checkout_tree(repo.workdir(), tree, objects)?;
-
-        Ok(())
+        self.checkout_tree(repo.workdir(), tree, objects).await
     }
 
-    fn checkout_tree(
+    async fn checkout_tree(
         &self,
-        path: &Path,
-        tree: &Tree,
+        root_path: &Path,
+        root_tree: &Tree,
         objects: &HashMap<String, Object>,
     ) -> Result<()> {
-        std::fs::create_dir_all(path)?;
+        let mut stack = VecDeque::new();
+        stack.push_back((root_path.to_path_buf(), root_tree));
 
-        for entry in &tree.entries {
-            let entry_path = path.join(&entry.name);
+        while let Some((current_path, tree)) = stack.pop_front() {
+            fs::create_dir_all(&current_path).await?;
 
-            match entry.object_type.as_str() {
-                "blob" => {
-                    let blob = match objects.get(&entry.object_hash) {
-                        Some(Object::Blob(b)) => b,
-                        _ => bail!("Missing blob {}", entry.object_hash),
-                    };
-                    std::fs::write(entry_path, &blob.data)?;
+            for entry in &tree.entries {
+                let entry_path = current_path.join(&entry.name);
+
+                match entry.object_type.as_str() {
+                    OBJ_TYPE_BLOB => {
+                        let blob = match objects.get(&entry.object_hash) {
+                            Some(Object::Blob(b)) => b,
+                            _ => bail!("Missing blob {}", entry.object_hash),
+                        };
+                        fs::write(entry_path, &blob.data).await?;
+                    }
+                    OBJ_TYPE_TREE => {
+                        let subtree = match objects.get(&entry.object_hash) {
+                            Some(Object::Tree(t)) => t,
+                            _ => bail!("Missing tree {}", entry.object_hash),
+                        };
+                        stack.push_back((entry_path, subtree));
+                    }
+                    _ => bail!("Unsupported object type in tree"),
                 }
-                "tree" => {
-                    let subtree = match objects.get(&entry.object_hash) {
-                        Some(Object::Tree(t)) => t,
-                        _ => bail!("Missing tree {}", entry.object_hash),
-                    };
-                    self.checkout_tree(&entry_path, subtree, objects)?;
-                }
-                _ => bail!("Unsupported object type in tree"),
             }
         }
 

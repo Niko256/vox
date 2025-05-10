@@ -1,14 +1,22 @@
 use crate::commands::index::index::Index;
 use crate::storage::utils::{HEAD_DIR, INDEX_FILE, OBJ_DIR, REFS_DIR, VOX_DIR};
 use anyhow::{Context, Result};
-use std::fs;
 use std::path::Path;
+use tokio::fs;
 
-pub fn init_command() -> Result<()> {
-    fs::create_dir_all(&*VOX_DIR).context("Failed to create .vox directory")?;
-    fs::create_dir_all(&*OBJ_DIR).context("Failed to create .vox/objects directory")?;
-    fs::create_dir_all(&*REFS_DIR).context("Failed to create .vox/refs directory")?;
-    fs::write(&*HEAD_DIR, "ref: refs/heads/main\n").context("Failed to write to .vox/HEAD file")?;
+pub async fn init_command() -> Result<()> {
+    fs::create_dir_all(&*VOX_DIR)
+        .await
+        .context("Failed to create .vox directory")?;
+    fs::create_dir_all(&*OBJ_DIR)
+        .await
+        .context("Failed to create .vox/objects directory")?;
+    fs::create_dir_all(&*REFS_DIR)
+        .await
+        .context("Failed to create .vox/refs directory")?;
+    fs::write(&*HEAD_DIR, "ref: refs/heads/main\n")
+        .await
+        .context("Failed to write to .vox/HEAD file")?;
 
     let index = Index::new();
     index
@@ -21,29 +29,24 @@ pub fn init_command() -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+    use crate::storage::repo::Repository;
 
-    use crate::commands::init::init::init_command;
-    use assert_cmd::Command;
-    use std::fs;
+    use super::*;
     use tempfile::TempDir;
+    use tokio::runtime::Runtime;
 
     #[test]
-    fn test_init_command() {
-        let temp_dir = TempDir::new().expect("Failed to create temp directory");
-        let vox_dir = temp_dir.path().join(".vox");
-        let obj_dir = vox_dir.join("objects");
-        let refs_dir = vox_dir.join("refs");
-        let head_file = vox_dir.join("HEAD");
-        let index_file = vox_dir.join("index");
+    fn test_async_init() {
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            let temp_dir = TempDir::new().unwrap();
+            let repo_path = temp_dir.path().join("test_repo");
 
-        std::env::set_current_dir(temp_dir.path()).unwrap();
+            Repository::init(&repo_path).await.unwrap()?;
 
-        init_command().unwrap();
-
-        assert!(vox_dir.exists());
-        assert!(obj_dir.exists());
-        assert!(refs_dir.exists());
-        assert!(head_file.exists());
-        assert!(index_file.exists());
+            assert!(repo_path.join(".vox/objects").exists());
+            assert!(repo_path.join(".vox/refs/heads").exists());
+            assert!(repo_path.join(".vox/HEAD").exists());
+        });
     }
 }

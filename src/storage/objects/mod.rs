@@ -6,6 +6,7 @@ use crate::storage::objects::tree::Tree;
 use anyhow::{anyhow, Result};
 use bytes::Bytes;
 use sha1::{Digest, Sha1};
+use std::path::PathBuf;
 use std::str::FromStr;
 use std::{collections::HashMap, path::Path};
 
@@ -39,9 +40,17 @@ pub(crate) enum Object {
     Unknown(String),
 }
 
-pub trait ObjectStore {
-    async fn get_object(&self, hash: &[u8; 20]) -> Result<Option<Box<dyn VoxObject>>>;
-    async fn put_object(&self, obj: Box<dyn VoxObject>) -> Result<()>;
+#[derive(Debug)]
+pub struct ObjectStorage {
+    pub dir: PathBuf,
+}
+
+impl ObjectStorage {
+    pub fn new(repo_path: &Path) -> Self {
+        Self {
+            dir: repo_path.join(&*OBJ_DIR),
+        }
+    }
 }
 
 pub trait Storable {
