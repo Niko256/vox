@@ -29,8 +29,6 @@ pub async fn init_command() -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use crate::storage::repo::Repository;
-
     use super::*;
     use tempfile::TempDir;
     use tokio::runtime::Runtime;
@@ -41,12 +39,21 @@ mod tests {
         rt.block_on(async {
             let temp_dir = TempDir::new().unwrap();
             let repo_path = temp_dir.path().join("test_repo");
-
-            Repository::init(&repo_path).await.unwrap()?;
-
+            
+            fs::create_dir_all(&repo_path).await.unwrap();
+            
+            let original_dir = std::env::current_dir().unwrap();
+            std::env::set_current_dir(&repo_path).unwrap();
+            
+            init_command().await.unwrap();
+            
+            std::env::set_current_dir(original_dir).unwrap();
+            
+            assert!(repo_path.join(".vox").exists());
             assert!(repo_path.join(".vox/objects").exists());
-            assert!(repo_path.join(".vox/refs/heads").exists());
+            assert!(repo_path.join(".vox/refs").exists());
             assert!(repo_path.join(".vox/HEAD").exists());
+            assert!(repo_path.join(".vox/index").exists());
         });
     }
 }

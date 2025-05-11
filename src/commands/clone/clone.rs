@@ -1,7 +1,7 @@
 use crate::commands::config::config::Config;
 use crate::commands::init::init::init_command;
 use crate::connection::VoxTransport;
-use crate::storage::objects::delta::apply_delta;
+use crate::storage::objects::delta::{apply_delta, Delta};
 use crate::storage::objects::pack::{PackObject, Packfile};
 use crate::storage::objects::{Object, ObjectStorage, VoxObject};
 use crate::storage::refs::write_ref;
@@ -96,29 +96,6 @@ impl CloneCommand {
     }
 
 
-
-
-    async fn fetch_refs(&self, transport: &VoxTransport) -> Result<HashMap<String, String>> {
-        let server_refs = transport.list_refs().await?;
-        let mut refs = HashMap::new();
-
-        for r in server_refs {
-            refs.insert(r.name, r.hash);
-        }
-
-        Ok(refs)
-    }
-
-    async fn fetch_packfile(
-        &self,
-        transport: &VoxTransport,
-        refs: &HashMap<String, String>,
-    ) -> Result<Packfile> {
-        let want: Vec<String> = refs.values().cloned().collect();
-        let pack_data = transport.fetch_packfile(&want).await?;
-        Packfile::deserialize(&pack_data)
-    }
-
     fn reconstruct_objects(&self, packfile: Packfile) -> Result<HashMap<String, Object>> {
         let mut base_objects = HashMap::new();
         let mut all_objects = HashMap::new();
@@ -137,6 +114,14 @@ impl CloneCommand {
                 let base_data = base_objects
                     .get(base_hash)
                     .ok_or_else(|| anyhow!("Missing base object {}", base_hash))?;
+
+                let base_size = base_data.len();
+                let mut delta = Delta::new(data);
+                let (expected_base_size, _) = delta.parse_header()?;
+
+                if base_size != expected_base_size {
+                    bail!("Base size mismatch (expected {}, got {})", expected_base_size, base_size);
+                }
 
                 let reconstructed = apply_delta(base_data, data)?;
                 let obj_type = Packfile::detect_type(&reconstructed)?;
@@ -196,4 +181,104 @@ pub async fn clone_command(
 
     let cmd = CloneCommand::new(url, target_dir, repo_name, config)?;
     cmd.try_execute().await
+}
+
+
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        commands::init::init::init_command,
+        storage::objects::{blob::Blob, commit::Commit, tree::{Tree, TreeEntry}},
+    };
+    use tempfile::tempdir;
+    use crate::storage::repo::Repository;
+    use chrono::Utc;
+
+    async fn create_test_repo() -> (tempfile::TempDir, Repository) {
+        let dir = tempdir().unwrap();
+        let repo = Repository::new_local("test-repo", dir.path());
+        init_command().await.unwrap();
+        (dir, repo)
+    }
+
+    fn create_test_objects() -> (HashMap<String, Object>, HashMap<String, String>) {
+        let mut objects = HashMap::new();
+        let mut refs = HashMap::new();
+
+        let blob = Blob { data: b"test content".to_vec() };
+        let blob_hash = blob.hash().unwrap();
+        objects.insert(blob_hash.clone(), Object::Blob(blob));
+
+        let mut tree = Tree { entries: vec![] };
+        tree.entries.push(TreeEntry {
+            name: "test.txt".to_string(),
+            object_hash: blob_hash,
+            object_type: "blob".to_string(),
+            mode: "100644".to_string(),
+        });
+        let tree_hash = tree.hash().unwrap();
+        objects.insert(tree_hash.clone(), Object::Tree(tree));
+
+        let timestamp = Utc::now(); 
+
+        let commit = Commit {
+            tree: tree_hash,
+            parent: None,
+            author: "test".to_string(),
+            message: "test commit".to_string(),
+            timestamp,
+        };
+        let commit_hash = commit.hash().unwrap();
+        objects.insert(commit_hash.clone(), Object::Commit(commit));
+
+        refs.insert("HEAD".to_string(), commit_hash);
+
+        (objects, refs)
+    }
+
+
+    #[tokio::test]
+    async fn test_delta_reconstruction() {
+        let (dir, _) = create_test_repo().await;
+        
+        let mut packfile = Packfile::new();
+        
+        let base_blob = Blob { data: b"base content".to_vec() }; // 12 bytes
+
+        packfile.add_object(&base_blob).unwrap();
+        
+        let delta_data = vec![0x10, 0x00, 0x00, 0x01, 0x0A];
+
+        packfile.objects.push(PackObject::Delta {
+            base_hash: base_blob.hash().unwrap(),
+            data: delta_data,
+        });
+
+        let cmd = CloneCommand::new(
+            Url::parse("http://example.com/repo.git").unwrap(),
+            dir.path().join("delta-test"),
+            "delta-test",
+            None,
+        ).unwrap();
+
+        
+        let result = cmd.reconstruct_objects(packfile);
+
+        assert!(result.is_err(), "Expected reconstruct_objects to fail");
+
+        let error_message = match result {
+            Ok(_) => panic!("Expected reconstruct_objects to fail"),
+            Err(e) => e.to_string(),
+        };
+
+        println!("Received error: {}", error_message);
+        assert!(error_message.contains("Base size mismatch"), "Error message should contain 'Base size mismatch'");
+        assert!(error_message.contains("expected 16, got 12"), "Error message should contain expected/got sizes");
+
+
+        assert!(!dir.path().join("delta-test").exists());
+    }
 }

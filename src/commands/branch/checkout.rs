@@ -18,7 +18,7 @@ use std::path::{Path, PathBuf};
 /// - target: branch name or commit hash to checkout
 /// - force: whether to force checkout even with uncommitted changes
 pub fn checkout_command(target: &str, force: bool, workdir: Option<&Path>) -> Result<()> {
-    let workdir = workdir.unwrap_or_else(|| Path::new("."));
+    let _workdir = workdir.unwrap_or_else(|| Path::new("."));
 
     // Check for uncommitted changes unless force flag is set
     if !force {

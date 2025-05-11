@@ -1,7 +1,7 @@
 use crate::storage::objects::{Storable, VoxObject};
 use crate::storage::utils::{OBJ_DIR, OBJ_TYPE_TAG};
 use anyhow::{anyhow, Context, Result};
-use chrono::{DateTime, FixedOffset, NaiveDateTime, Utc};
+use chrono::{DateTime, FixedOffset, Utc};
 use flate2::read::ZlibDecoder;
 use flate2::write::ZlibEncoder;
 use flate2::Compression;
@@ -42,7 +42,7 @@ impl Tag {
     /// <message>
     /// ```
     pub fn parse(data: &str) -> Result<Self> {
-        let mut lines = data.lines();
+        let lines = data.lines();
         let mut object = None;
         let mut object_type = None;
         let mut tag_name = None;

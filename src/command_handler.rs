@@ -24,7 +24,7 @@ use anyhow::Result;
 pub async fn handle_command(command: Commands) -> Result<()> {
     match command {
         Commands::Init => {
-            init_command()?;
+            init_command().await?;
         }
         Commands::CatFile {
             pretty_print,
@@ -82,7 +82,7 @@ pub async fn handle_command(command: Commands) -> Result<()> {
         }
         Commands::Clone { url, dir } => {
             let dir = dir.unwrap_or_else(|| PathBuf::from("."));
-            clone_command(url, dir, None).await?;
+            clone_command(url, dir, "repository".to_string(), None).await?;
         }
     }
     Ok(())

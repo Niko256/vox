@@ -1,5 +1,4 @@
-use anyhow::{anyhow, bail, Context, Result};
-use std::ops::Range;
+use anyhow::{bail, Context, Result};
 
 /// Represents a single delta operation - either Copy or Insert
 #[derive(Debug)]
@@ -19,7 +18,7 @@ enum DeltaOp {
 /// It consists of:
 ///   1. Header with base and result sizes
 ///   2. Series of COPY/INSERT operations
-struct Delta<'a> {
+pub struct Delta<'a> {
     /// The raw delta data being parsed
     data: &'a [u8],
     /// Current read position within the data
@@ -28,7 +27,7 @@ struct Delta<'a> {
 
 impl<'a> Delta<'a> {
     /// Creates a new Delta from raw bytes
-    fn new(data: &'a [u8]) -> Self {
+    pub fn new(data: &'a [u8]) -> Self {
         Self { data, position: 0 }
     }
 
@@ -40,7 +39,7 @@ impl<'a> Delta<'a> {
     ///
     /// Where sizes are variable-length integers (see read_size())
     ///
-    fn parse_header(&mut self) -> Result<(usize, usize)> {
+    pub fn parse_header(&mut self) -> Result<(usize, usize)> {
         let base_size = self.read_size()?;
         let result_size = self.read_size()?;
         Ok((base_size, result_size))
@@ -53,7 +52,7 @@ impl<'a> Delta<'a> {
     ///   1. COPY - references data from base object
     ///   2. INSERT - adds new data
     ///
-    fn parse_ops(&mut self) -> Result<Vec<DeltaOp>> {
+    pub fn parse_ops(&mut self) -> Result<Vec<DeltaOp>> {
         let mut ops = Vec::new();
 
         while self.position < self.data.len() {
@@ -85,7 +84,7 @@ impl<'a> Delta<'a> {
     /// # Errors
     /// Returns error if the offset/length encoding is invalid
     ///
-    fn parse_copy_op(&mut self, cmd: u8) -> Result<(usize, usize)> {
+    pub fn parse_copy_op(&mut self, cmd: u8) -> Result<(usize, usize)> {
         let mut offset = 0;
         let mut length = 0;
 
@@ -162,7 +161,7 @@ impl<'a> Delta<'a> {
     /// # Arguments
     /// * `cmd` - The command byte (length of data to insert)
     ///
-    fn parse_insert_data(&mut self, cmd: u8) -> Result<Vec<u8>> {
+    pub fn parse_insert_data(&mut self, cmd: u8) -> Result<Vec<u8>> {
         let length = cmd as usize;
         let start = self.position;
         let end = start + length;
@@ -180,7 +179,7 @@ impl<'a> Delta<'a> {
     /// # Errors
     /// Returns error if we've reached end of data
     ///
-    fn read_byte(&mut self) -> Result<u8> {
+    pub fn read_byte(&mut self) -> Result<u8> {
         if self.position >= self.data.len() {
             bail!("Unexpected end of delta");
         }
@@ -194,7 +193,7 @@ impl<'a> Delta<'a> {
     /// # Returns
     /// The decoded size value
     ///
-    fn read_size(&mut self) -> Result<usize> {
+    pub fn read_size(&mut self) -> Result<usize> {
         let mut size = 0;
         let mut shift = 0;
         loop {

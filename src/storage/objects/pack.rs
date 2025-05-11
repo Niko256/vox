@@ -1,13 +1,12 @@
 use crate::storage::objects::{Blob, Commit, Object, Tag, Tree, VoxObject};
 use crate::storage::utils::{OBJ_TYPE_BLOB, OBJ_TYPE_COMMIT, OBJ_TYPE_TAG, OBJ_TYPE_TREE};
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{anyhow, bail, Result};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use flate2::bufread::ZlibDecoder;
 use flate2::{write::ZlibEncoder, Compression};
 use sha1::{Digest, Sha1};
 use std::collections::HashMap;
 use std::io::{Cursor, Read, Write};
-use std::path::Path;
 
 use super::delta::apply_delta;
 
@@ -92,7 +91,7 @@ impl Packfile {
         for obj in &self.objects {
             let (type_code, content) = match obj {
                 PackObject::Base(data, obj_type) => (*obj_type as u8, data.clone()),
-                PackObject::Delta { base_hash, data } => (ObjectType::DeltaRef as u8, data.clone()),
+                PackObject::Delta { base_hash: _, data } => (ObjectType::DeltaRef as u8, data.clone()),
             };
 
             // Compress the object data

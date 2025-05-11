@@ -3,7 +3,6 @@ pub mod transport;
 use anyhow::{anyhow, Result};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use std::path::Path;
 use url::Url;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -13,13 +12,10 @@ pub struct RefInfo {
 }
 
 
-
-
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PackfileResponse {
     pub data: Vec<u8>,
 }
-
 
 
 pub struct VoxTransport {

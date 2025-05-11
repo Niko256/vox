@@ -3,6 +3,7 @@ use crate::storage::objects::VoxObject;
 use crate::storage::utils::OBJ_DIR;
 use crate::storage::utils::OBJ_TYPE_BLOB;
 use crate::storage::utils::OBJ_TYPE_TREE;
+use anyhow::bail;
 use anyhow::{Context, Result};
 use flate2::read::ZlibDecoder;
 use std::str::FromStr;
@@ -23,6 +24,10 @@ pub fn cat_file_command(
     show_type: bool,
     show_size: bool,
 ) -> Result<()> {
+    if object_hash.is_empty() {
+        bail!("Empty object hash provided!");
+    }
+
     let object_data = read_vox_object(&object_hash)?;
     let (object_type, content) = parse_object_header(&object_data)?;
 

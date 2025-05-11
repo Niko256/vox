@@ -1,11 +1,9 @@
-use anyhow::Context;
 use serde::{Deserialize, Serialize};
-use serde_json::value::Index;
 use std::path::{Path, PathBuf};
 use tokio::{fs, io};
 use url::Url;
 
-use crate::storage::utils::{HEAD_DIR, INDEX_FILE, OBJ_DIR, REFS_DIR, VOX_DIR};
+use crate::storage::utils::{HEAD_DIR, OBJ_DIR, REFS_DIR, VOX_DIR};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum RepoType {
@@ -55,25 +53,17 @@ impl Repository {
         &self.workdir
     }
 
-    pub async fn init(path: &Path) -> Result<Self> {
+    pub async fn init(path: &Path) -> Result<Self, io::Error> {
         let repo = Self {
             name: String::new(),
             workdir: path.to_path_buf(),
             repo_type: RepoType::Local,
         };
 
-        fs::create_dir_all(&*VOX_DIR)
-            .await
-            .context("Failed to create .vox directory")?;
-        fs::create_dir_all(&*OBJ_DIR)
-            .await
-            .context("Failed to create .vox/objects directory")?;
-        fs::create_dir_all(&*REFS_DIR)
-            .await
-            .context("Failed to create .vox/refs directory")?;
-        fs::write(&*HEAD_DIR, "ref: refs/heads/main\n")
-            .await
-            .context("Failed to write to .vox/HEAD file")?;
+        fs::create_dir_all(&*VOX_DIR).await?;
+        fs::create_dir_all(&*OBJ_DIR).await?;
+        fs::create_dir_all(&*REFS_DIR).await?;
+        fs::write(&*HEAD_DIR, "ref: refs/heads/main\n").await?;
 
         Ok(repo)
     }
