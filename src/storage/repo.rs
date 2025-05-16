@@ -1,10 +1,10 @@
+use crate::storage::utils::{HEAD_DIR, OBJ_DIR, REFS_DIR, VOX_DIR};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use tokio::{fs, io};
 use url::Url;
 
-use crate::storage::utils::{HEAD_DIR, OBJ_DIR, REFS_DIR, VOX_DIR};
-
+/// Represents the type of the repository
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum RepoType {
     Local,
@@ -22,6 +22,12 @@ pub struct Repository {
 }
 
 impl Repository {
+    /// Creates a new local repository
+    /// # Example:
+    /// ```
+    /// let repo = Repository::new_local("my_repo", "/path/to/my_repo/");
+    /// ```
+    ///
     pub fn new_local(name: impl Into<String>, workdir: impl Into<PathBuf>) -> Self {
         Self {
             name: name.into(),
@@ -30,6 +36,12 @@ impl Repository {
         }
     }
 
+    /// Creates a new remote repository with a URL
+    /// # Example:
+    /// ```
+    /// let url = Url::parse("https://github.com/user/my_remote_repo.git").unwrap();
+    /// let repo = Repository::new_remote("my_remote_repo", "path/to/clone/", url);
+    /// ```
     pub fn new_remote(name: impl Into<String>, workdir: impl Into<PathBuf>, url: Url) -> Self {
         Self {
             name: name.into(),
@@ -38,6 +50,7 @@ impl Repository {
         }
     }
 
+    /// Returns the URL if this is the remote repository
     pub fn url(&self) -> Option<&Url> {
         match &self.repo_type {
             RepoType::Local => None,
@@ -45,14 +58,18 @@ impl Repository {
         }
     }
 
+    /// Returns the repository name
     pub fn name(&self) -> &str {
         &self.name
     }
 
+    ///  Returns the working directory path
     pub fn workdir(&self) -> &Path {
         &self.workdir
     }
 
+    /// Initialize a new repository at the given path
+    /// Creates necessary directory structure and files
     pub async fn init(path: &Path) -> Result<Self, io::Error> {
         let repo = Self {
             name: String::new(),
@@ -60,14 +77,17 @@ impl Repository {
             repo_type: RepoType::Local,
         };
 
-        fs::create_dir_all(&*VOX_DIR).await?;
-        fs::create_dir_all(&*OBJ_DIR).await?;
-        fs::create_dir_all(&*REFS_DIR).await?;
+        fs::create_dir_all(&*VOX_DIR).await?; // Main Vox directory
+        fs::create_dir_all(&*OBJ_DIR).await?; // Objects storage
+        fs::create_dir_all(&*REFS_DIR).await?; // References storage
+
+        // Initialize HEAD file pointing to main branch
         fs::write(&*HEAD_DIR, "ref: refs/heads/main\n").await?;
 
         Ok(repo)
     }
 
+    /// Checks if a repository is already initialized at the given path
     pub async fn is_initialized(path: &Path) -> Result<bool, io::Error> {
         let vox_dir = path.join(".vox");
         Ok(vox_dir.exists())

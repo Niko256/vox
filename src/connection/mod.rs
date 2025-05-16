@@ -1,4 +1,3 @@
-pub mod protocol;
 pub mod transport;
 use anyhow::{anyhow, Result};
 use reqwest::Client;

@@ -11,22 +11,24 @@ use std::io::{Cursor, Read, Write};
 use super::delta::apply_delta;
 
 /// Represents a packfile containing Vox objects in compressed form
+///
+/// Packfiles are used to efficiently store and transfer multiple objects
 #[derive(Debug)]
 pub struct Packfile {
-    /// The objects contained in this packfile
+    /// The collection of packed objects
     pub objects: Vec<PackObject>,
     /// Index mapping object hashes to their locations in the packfile
     pub index: HashMap<String, ObjectLocation>,
 }
 
-/// Location information for an object within a packfile
+/// Metadata describing an object's physical location within a packfile
 #[derive(Debug)]
 pub struct ObjectLocation {
     /// Byte offset where the object starts
     pub offset: u64,
-    /// Compressed size of the object
+    /// Compressed size of the object in bytes
     pub size: u32,
-    /// Type code of the object
+    /// Numerical code indicating the object type
     pub type_code: u8,
 }
 
@@ -37,14 +39,14 @@ pub enum PackObject {
     Base(Vec<u8>, ObjectType),
     /// A delta-compressed object referencing a base object
     Delta {
-        /// Hash of the base object
+        /// SHA-1 hash of the base object this delta applies to
         base_hash: String,
-        /// Delta instructions to reconstruct the object
+        /// Delta instructions needed to reconstruct the object
         data: Vec<u8>,
     },
 }
 
-/// The type of a Vox object
+/// Enum of possible object types in the Vox storage system
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ObjectType {
@@ -91,7 +93,9 @@ impl Packfile {
         for obj in &self.objects {
             let (type_code, content) = match obj {
                 PackObject::Base(data, obj_type) => (*obj_type as u8, data.clone()),
-                PackObject::Delta { base_hash: _, data } => (ObjectType::DeltaRef as u8, data.clone()),
+                PackObject::Delta { base_hash: _, data } => {
+                    (ObjectType::DeltaRef as u8, data.clone())
+                }
             };
 
             // Compress the object data
