@@ -3,7 +3,6 @@ use std::path::PathBuf;
 use crate::cli::Commands;
 use crate::commands::branch::branch::branch_command;
 use crate::commands::branch::checkout::checkout_command;
-use crate::commands::clone::clone::clone_command;
 use crate::commands::log::log::log_command;
 use crate::commands::show::show::show_command;
 use crate::commands::write_tree::write_tree::write_tree_command;
@@ -13,7 +12,7 @@ use crate::commands::{
     commit::commit::commit_command,
     config::commands::config_command,
     diff::diff::diff_command,
-    hash_object::hash_object::{hash_object_command, HashObjectArgs},
+    hash_object::hash_object::{HashObjectArgs, hash_object_command},
     index::{ls_files::ls_files_command, rm_index::rm_command},
     init::init::init_command,
     remote::commands::remote_command,
@@ -79,10 +78,6 @@ pub async fn handle_command(command: Commands) -> Result<()> {
         }
         Commands::Diff { from, to } => {
             diff_command(from, to)?;
-        }
-        Commands::Clone { url, dir } => {
-            let dir = dir.unwrap_or_else(|| PathBuf::from("."));
-            clone_command(url, dir, "repository".to_string(), None).await?;
         }
     }
     Ok(())

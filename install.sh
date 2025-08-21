@@ -2,13 +2,12 @@
 
 cd "$(dirname "$0")"
 
-# Check if Rust and Cargo are installed
 if ! command -v rustc &> /dev/null || ! command -v cargo &> /dev/null; then
     echo "Rust and Cargo are required but not installed. Please install them first."
     exit 1
 fi
 
-# Function to install the project
+# install the project
 install_project() {
     echo "Installing vox..."
     cargo install --path .
@@ -21,7 +20,7 @@ install_project() {
     fi
 }
 
-# Function to update the project
+# update the project
 update_project() {
     echo "Updating vox..."
     cargo install --path . --force
@@ -34,12 +33,23 @@ update_project() {
     fi
 }
 
-# Function to add vox to the PATH
+# add vox to the PATH
 add_to_path() {
     echo "Adding vox to PATH..."
-    if [[ ":$PATH:" != *":$HOME/.cargo/bin:"* ]]; then
-        echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> ~/.bashrc
-        echo "Please restart your shell or run 'source ~/.bashrc' to apply changes."
+    
+    local shell_rc
+    
+    if [ -n "$ZSH_VERSION" ]; then
+        shell_rc=~/.zshrc
+    elif [ -n "$BASH_VERSION" ]; then
+        shell_rc=~/.bashrc
+    else
+        shell_rc=~/.profile
+    fi
+
+    if [[ ":PATH:" != *":HOME/.cargo/bin:"* ]]; then
+        echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> "$shell_rc"
+        echo "Please restart your shell or run 'source $shell_rc' to apply changes"
     else
         echo "vox is already in PATH."
     fi

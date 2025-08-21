@@ -132,13 +132,4 @@ pub enum Commands {
         #[clap(help = "The commit or reference to compare to")]
         to: Option<String>,
     },
-
-    #[command(about = "Clone the repository into a directory")]
-    Clone {
-        #[arg(help = "URL to clone from")]
-        url: Url,
-
-        #[arg(help = "Directory for clonning")]
-        dir: Option<PathBuf>,
-    },
 }
